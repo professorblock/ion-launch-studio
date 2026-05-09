@@ -2049,6 +2049,31 @@ td small {
   line-height: 1.45;
 }
 
+.deployment-summary {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(96, 165, 250, 0.16);
+  border-radius: 8px;
+  background: rgba(96, 165, 250, 0.045);
+}
+
+.deployment-summary span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.deployment-summary strong {
+  color: #ffffff;
+  font-size: 12px;
+  text-transform: none;
+}
+
 .burn-summary-grid {
   margin-top: 4px;
 }

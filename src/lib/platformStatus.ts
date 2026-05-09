@@ -2,6 +2,13 @@ import { z } from 'zod';
 
 const platformStatusSchema = z.object({
   status: z.string(),
+  deployment: z.object({
+    environment: z.string(),
+    region: z.string().optional(),
+    url: z.string().optional(),
+    gitBranch: z.string().optional(),
+    gitCommit: z.string().optional(),
+  }).optional().catch(undefined),
   services: z.object({
     bitquery: z.boolean(),
     metadata: z.boolean(),
@@ -27,6 +34,9 @@ export async function fetchPlatformStatus(): Promise<PlatformStatus> {
   } catch {
     return {
       status: 'local',
+      deployment: {
+        environment: 'local',
+      },
       services: {
         bitquery: false,
         metadata: false,

@@ -17,6 +17,11 @@ ION Launch uses a staging-first release flow.
 6. Open a pull request from `staging` into `master`.
 7. Deploy production only after staging is confirmed.
 
+## Pull Requests
+
+Use the repository pull request template for each change. Every PR should state the preview URL, checked routes, and
+confirm that no secrets, custom smart contracts, or custodial signing paths were introduced.
+
 ## Required Production Variables
 
 - `BITQUERY_API_TOKEN`

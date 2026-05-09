@@ -19,6 +19,13 @@ export default function handler(request, response) {
 
   response.status(200).json({
     status: 'ok',
+    deployment: {
+      environment: process.env.VERCEL_ENV || 'local',
+      region: process.env.VERCEL_REGION || undefined,
+      url: process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+      gitBranch: process.env.VERCEL_GIT_COMMIT_REF || undefined,
+      gitCommit: process.env.VERCEL_GIT_COMMIT_SHA || undefined,
+    },
     services: {
       bitquery: checks.bitquery,
       metadata: checks.metadata,
