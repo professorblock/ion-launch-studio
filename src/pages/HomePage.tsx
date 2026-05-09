@@ -1,11 +1,10 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, LineChart, Search, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, Flame, MessageCircle, Search, Sparkles, TrendingUp, Users, Zap } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchBurnDashboard } from '../lib/burnData';
 import { fetchLaunchData } from '../lib/launchData';
-import { formatNumber, formatUsd } from '../lib/format';
-import { TokenCard } from '../components/token/TokenCard';
+import { formatNumber, formatUsd, timeAgo } from '../lib/format';
 import { SourceBadge } from '../components/ui/SourceBadge';
 
 export function HomePage() {
@@ -13,7 +12,17 @@ export function HomePage() {
   const [search, setSearch] = useState('');
   const { data } = useQuery({ queryKey: ['launch-dashboard'], queryFn: fetchLaunchData });
   const { data: burnData } = useQuery({ queryKey: ['burn-dashboard-home'], queryFn: fetchBurnDashboard });
-  const tokens = data?.tokens ?? [];
+  const tokens = useMemo(() => data?.tokens ?? [], [data?.tokens]);
+
+  const heroTokens = tokens.slice(0, 6);
+  const trendingTokens = useMemo(
+    () => [...tokens].sort((a, b) => b.volume24hUsd - a.volume24hUsd).slice(0, 8),
+    [tokens],
+  );
+  const newestTokens = useMemo(
+    () => [...tokens].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 4),
+    [tokens],
+  );
   const totalVolume = tokens.reduce((sum, token) => sum + token.volume24hUsd, 0);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
@@ -24,100 +33,136 @@ export function HomePage() {
 
   return (
     <>
-      <section className="hero-section">
-        <div className="hero-content">
+      <section className="launch-floor">
+        <div className="launch-floor-copy">
           <div className="hero-pill">
             <span className="status-dot" />
-            <span>Live market studio</span>
+            <span>ION launch floor</span>
           </div>
-          <SourceBadge source={data?.source} />
           <h1>
-            Launch Tokens
-            <br />
-            on <span>ION.</span>
+            Create and trade community tokens in minutes.
           </h1>
-          <div className="hero-tagline">For Community Markets.</div>
           <p>
-            A premium launch and market workspace for the Ice Open Network community. Create token profiles, track live
-            momentum, and manage wallet-confirmed launch flows from one native interface.
+            A simple ION-native launch experience for discovering new markets, starting a token, and tracking momentum
+            without touching contract code.
           </p>
           <div className="hero-actions">
             <Link className="button button-primary" to="/launch">
-              Start Building
+              Launch token
               <ArrowRight size={18} />
             </Link>
             <Link className="button button-muted" to="/discover">
-              Explore Markets
+              Explore coins
             </Link>
           </div>
-          <div className="hero-desk">
-            <div className="desk-toolbar">
-              <Link className="button button-primary" to="/launch">
-                Create Token
-                <ArrowRight size={17} />
-              </Link>
-              <form className="desk-search" onSubmit={submitSearch}>
-                <Search size={17} />
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search token, ticker, or creator" />
-              </form>
-              <div className="desk-stat">
-                <span>24h volume</span>
-                <strong>{formatUsd(totalVolume || 312_000)}</strong>
-              </div>
-              <div className="desk-stat">
-                <span>ION burned</span>
-                <strong>{formatNumber(burnData?.summary.totalBurnedIon ?? 0)}</strong>
-              </div>
-            </div>
+          <form className="hero-search" onSubmit={submitSearch}>
+            <Search size={18} />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search coin, ticker, or creator" />
+            <button type="submit">Search</button>
+          </form>
+        </div>
 
-            <div className="desk-market-grid">
-              {tokens.slice(0, 4).map((token, index) => (
-                <Link className="desk-token" to={`/token/${token.address}`} key={token.address}>
-                  <img src={token.imageUrl} alt="" />
-                  <div>
-                    <span>{index === 0 ? 'Now bonding' : token.status}</span>
-                    <strong>{token.name}</strong>
-                    <small>
-                      ${token.symbol} · {formatUsd(token.volume24hUsd)} vol
-                    </small>
-                  </div>
-                </Link>
-              ))}
+        <div className="launch-floor-panel">
+          <div className="floor-panel-top">
+            <div>
+              <span>Live board</span>
+              <strong>{formatNumber(tokens.length)} launches tracked</strong>
+            </div>
+            <SourceBadge source={data?.source} />
+          </div>
+          <div className="coin-tape">
+            {heroTokens.map((token) => (
+              <Link to={`/token/${token.address}`} className="coin-tape-item" key={token.address}>
+                <img src={token.imageUrl} alt="" />
+                <span>
+                  <strong>{token.symbol}</strong>
+                  <small>{formatUsd(token.marketCapUsd)} MC</small>
+                </span>
+              </Link>
+            ))}
+          </div>
+          <div className="floor-stats">
+            <div>
+              <TrendingUp size={18} />
+              <span>24h volume</span>
+              <strong>{formatUsd(totalVolume || 312_000)}</strong>
+            </div>
+            <div>
+              <Flame size={18} />
+              <span>ION burned</span>
+              <strong>{formatNumber(burnData?.summary.totalBurnedIon ?? 0)}</strong>
+            </div>
+            <div>
+              <Zap size={18} />
+              <span>Fast start</span>
+              <strong>Profile first</strong>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="content-band">
+      <section className="market-strip">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Market pulse</span>
-            <h2>Live market board</h2>
+            <span className="eyebrow">Trending now</span>
+            <h2>Live market feed</h2>
           </div>
-          <Link to="/discover">View all</Link>
+          <Link to="/discover">Open board</Link>
         </div>
-        <div className="token-grid">
-          {tokens.slice(0, 3).map((token) => (
-            <TokenCard key={token.address} token={token} />
+        <div className="home-market-feed">
+          {trendingTokens.map((token, index) => (
+            <Link className="feed-row" to={`/token/${token.address}`} key={token.address}>
+              <span className="feed-rank">#{index + 1}</span>
+              <img src={token.imageUrl} alt="" />
+              <span className="feed-name">
+                <strong>{token.name}</strong>
+                <small>${token.symbol} · {timeAgo(token.createdAt)}</small>
+              </span>
+              <span className="feed-price">{formatUsd(token.marketCapUsd)} MC</span>
+              <span className={`feed-chip ${(token.priceChange24h ?? 0) >= 0 ? 'up' : 'down'}`}>
+                {(token.priceChange24h ?? 0) > 0 ? '+' : ''}{(token.priceChange24h ?? 0).toFixed(1)}%
+              </span>
+              <span className="feed-chip">Vol {formatUsd(token.volume24hUsd)}</span>
+              <span className="feed-mini"><MessageCircle size={13} /> {formatNumber(token.trades24h)}</span>
+              <span className="feed-mini"><Users size={13} /> {formatNumber(token.holders ?? 0)}</span>
+              <ArrowRight size={16} className="feed-arrow" />
+            </Link>
           ))}
         </div>
       </section>
 
-      <section className="feature-strip">
-        <div>
-          <ShieldCheck />
-          <strong>Wallet-confirmed flow</strong>
-          <p>Every transaction is prepared transparently and confirmed by the user from their own wallet.</p>
+      <section className="split-market">
+        <div className="quick-launch-card">
+          <Sparkles size={22} />
+          <span>Creator shortcut</span>
+          <h2>Start with a name, ticker, image, and story.</h2>
+          <p>
+            Advanced routing, fee status, metadata, and execution readiness stay available after the basic profile is
+            ready.
+          </p>
+          <Link className="button button-primary" to="/launch">
+            Create token
+            <ArrowRight size={17} />
+          </Link>
         </div>
-        <div>
-          <LineChart />
-          <strong>Native analytics</strong>
-          <p>Charts, curve progress, trade flow, and token intelligence live directly inside the platform.</p>
-        </div>
-        <div>
-          <Sparkles />
-          <strong>Creator-first workspace</strong>
-          <p>Launch setup, market discovery, analytics, and trading tools are designed to live inside the same product.</p>
+
+        <div className="new-list">
+          <div className="section-heading flush">
+            <div>
+              <span className="eyebrow">Fresh launches</span>
+              <h2>Just landed</h2>
+            </div>
+          </div>
+          {newestTokens.map((token) => (
+            <Link to={`/token/${token.address}`} className="launch-row" key={token.address}>
+              <img src={token.imageUrl} alt="" />
+              <span>
+                <strong>{token.name}</strong>
+                <small>${token.symbol} · {timeAgo(token.createdAt)}</small>
+              </span>
+              <em>{formatUsd(token.marketCapUsd)}</em>
+            </Link>
+          ))}
         </div>
       </section>
     </>
