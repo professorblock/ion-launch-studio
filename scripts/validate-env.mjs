@@ -40,6 +40,16 @@ const checks = [
     ok: isAddress(env.VITE_FOUR_MEME_PROXY || env.FOUR_MEME_PROXY),
     detail: 'Set VITE_FOUR_MEME_PROXY and FOUR_MEME_PROXY for market-data filtering.',
   },
+  {
+    name: 'Launch execution remains gated',
+    ok: env.VITE_ENABLE_LAUNCH_EXECUTION !== 'true',
+    detail: 'Keep VITE_ENABLE_LAUNCH_EXECUTION=false until the launch route is independently verified.',
+  },
+  {
+    name: 'Trade execution remains gated',
+    ok: env.VITE_ENABLE_TRADE_EXECUTION !== 'true',
+    detail: 'Keep VITE_ENABLE_TRADE_EXECUTION=false until trade calldata and slippage behavior are verified.',
+  },
 ];
 
 let failures = 0;

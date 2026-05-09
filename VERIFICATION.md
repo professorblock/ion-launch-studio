@@ -30,6 +30,7 @@ This checklist must be completed before enabling public transactional flows.
 
 - [ ] Confirm whether launch metadata should be pinned by our app or handled by the verified launch route.
 - [ ] If app-side pinning is used, configure `PINATA_JWT` server-side only.
+- [ ] Confirm image pinning with PNG, JPG, and WebP files under 1.5 MB.
 - [ ] Confirm pinned metadata format against the final launch route requirements.
 - [ ] Confirm frontend bundle does not expose `PINATA_JWT`.
 
@@ -46,5 +47,7 @@ This checklist must be completed before enabling public transactional flows.
 - [ ] Test wrong-network flow.
 - [ ] Test insufficient ION balance flow.
 - [ ] Test rejected transaction flow.
-- [ ] Test confirmed fee transfer flow.
+- [ ] Test submitted fee transfer flow and reconcile hash against BNBScan.
 - [ ] Review all risk and fee copy.
+- [ ] Keep `VITE_ENABLE_LAUNCH_EXECUTION=false` until route calldata is verified.
+- [ ] Keep `VITE_ENABLE_TRADE_EXECUTION=false` until trade calldata and slippage behavior are verified.

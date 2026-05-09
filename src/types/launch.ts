@@ -10,7 +10,14 @@ export interface LaunchPacket {
   x?: string;
   telegram?: string;
   imagePreview?: string;
+  imageUri?: string;
+  imageGatewayUrl?: string;
   feeTxHash?: Hex;
+  feeSubmittedAt?: string;
+  feeAmountIon?: string;
+  feeTokenAddress?: string;
+  feeTreasuryAddress?: string;
   metadataUri?: string;
+  metadataGatewayUrl?: string;
   metadataStatus: 'local' | 'pinned' | 'unconfigured';
 }

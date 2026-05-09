@@ -26,6 +26,8 @@ const initialForm: LaunchFormState = {
   telegram: '',
 };
 
+const maxImageBytes = 1_500_000;
+
 function getConfiguredFeeAmount() {
   try {
     return parseUnits(feeConfig.platformFeeIon, feeConfig.ionDecimals);
@@ -42,6 +44,7 @@ export function LaunchPage() {
   const [advanced, setAdvanced] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [feeTxHash, setFeeTxHash] = useState<Hex>();
+  const [imageError, setImageError] = useState<string>();
   const [feeError, setFeeError] = useState<string>();
   const [feeBalance, setFeeBalance] = useState<bigint>();
   const [launchPacket, setLaunchPacket] = useState<LaunchPacket>();
@@ -118,10 +121,27 @@ export function LaunchPage() {
 
   function handleImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
     const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
-    if (!allowedTypes.includes(file.type) || file.size > 5 * 1024 * 1024) return;
-    setImagePreview(URL.createObjectURL(file));
+    if (!allowedTypes.includes(file.type)) {
+      setImageError('Use PNG, JPG, or WebP.');
+      return;
+    }
+    if (file.size > maxImageBytes) {
+      setImageError('Use an image under 1.5 MB for safe metadata upload.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setImagePreview(reader.result);
+        setImageError(undefined);
+      }
+    };
+    reader.onerror = () => setImageError('Could not read that image.');
+    reader.readAsDataURL(file);
   }
 
   async function submitLaunch(event: FormEvent<HTMLFormElement>) {
@@ -129,13 +149,20 @@ export function LaunchPage() {
     if (!formReady || !acknowledged) return;
     setIsPreparingPacket(true);
 
-    const metadata: { status: 'pinned' | 'unconfigured' | 'local'; uri?: string } = await pinLaunchMetadata({
+    const metadata: {
+      status: 'pinned' | 'unconfigured' | 'local';
+      uri?: string;
+      gatewayUrl?: string;
+      imageUri?: string;
+      imageGatewayUrl?: string;
+    } = await pinLaunchMetadata({
       name: form.name.trim(),
       symbol: form.symbol.trim(),
       description: form.description.trim(),
       website: normalizeOptionalUrl(form.website),
       x: normalizeOptionalUrl(form.x),
       telegram: normalizeOptionalUrl(form.telegram),
+      imageDataUrl: imagePreview?.startsWith('data:image/') ? imagePreview : undefined,
     }).catch(() => ({ status: 'local' as const }));
 
     const nextPacket: LaunchPacket = {
@@ -148,8 +175,11 @@ export function LaunchPage() {
       x: normalizeOptionalUrl(form.x),
       telegram: normalizeOptionalUrl(form.telegram),
       imagePreview,
+      imageUri: metadata.imageUri,
+      imageGatewayUrl: metadata.imageGatewayUrl,
       feeTxHash,
       metadataUri: metadata.uri,
+      metadataGatewayUrl: metadata.gatewayUrl,
       metadataStatus: metadata.status === 'pinned' ? 'pinned' : metadata.status === 'unconfigured' ? 'unconfigured' : 'local',
     };
 
@@ -171,8 +201,15 @@ export function LaunchPage() {
         decimals: feeConfig.ionDecimals,
       });
       setFeeTxHash(hash);
+      const feeRecord = {
+        feeTxHash: hash,
+        feeSubmittedAt: new Date().toISOString(),
+        feeAmountIon: feeConfig.platformFeeIon,
+        feeTokenAddress: feeConfig.ionTokenAddress,
+        feeTreasuryAddress: feeConfig.treasuryAddress,
+      };
       if (launchPacket) {
-        const nextPacket = { ...launchPacket, feeTxHash: hash };
+        const nextPacket = { ...launchPacket, ...feeRecord };
         setLaunchPacket(nextPacket);
         saveLaunchPacket(nextPacket);
       }
@@ -205,10 +242,11 @@ export function LaunchPage() {
               <span className="upload-empty">
                 <ImagePlus size={22} />
                 <strong>Upload square image</strong>
-                <small>PNG / JPG / WebP, under 5 MB</small>
+                <small>PNG / JPG / WebP, under 1.5 MB</small>
               </span>
             )}
           </label>
+          {imageError ? <div className="fee-error">{imageError}</div> : null}
 
           <div className="form-row">
             <label>
