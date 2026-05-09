@@ -1,11 +1,10 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Flame, Search, Sparkles, TrendingUp, Zap } from 'lucide-react';
+import { ArrowRight, Flame, MessageCircle, Search, Sparkles, TrendingUp, Users, Zap } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchBurnDashboard } from '../lib/burnData';
 import { fetchLaunchData } from '../lib/launchData';
 import { formatNumber, formatUsd, timeAgo } from '../lib/format';
-import { TokenCard } from '../components/token/TokenCard';
 import { SourceBadge } from '../components/ui/SourceBadge';
 
 export function HomePage() {
@@ -17,7 +16,7 @@ export function HomePage() {
 
   const heroTokens = tokens.slice(0, 6);
   const trendingTokens = useMemo(
-    () => [...tokens].sort((a, b) => b.volume24hUsd - a.volume24hUsd).slice(0, 4),
+    () => [...tokens].sort((a, b) => b.volume24hUsd - a.volume24hUsd).slice(0, 8),
     [tokens],
   );
   const newestTokens = useMemo(
@@ -106,13 +105,28 @@ export function HomePage() {
         <div className="section-heading">
           <div>
             <span className="eyebrow">Trending now</span>
-            <h2>Coins moving on the launch floor</h2>
+            <h2>Live market feed</h2>
           </div>
           <Link to="/discover">Open board</Link>
         </div>
-        <div className="token-grid compact">
-          {trendingTokens.map((token) => (
-            <TokenCard key={token.address} token={token} />
+        <div className="home-market-feed">
+          {trendingTokens.map((token, index) => (
+            <Link className="feed-row" to={`/token/${token.address}`} key={token.address}>
+              <span className="feed-rank">#{index + 1}</span>
+              <img src={token.imageUrl} alt="" />
+              <span className="feed-name">
+                <strong>{token.name}</strong>
+                <small>${token.symbol} · {timeAgo(token.createdAt)}</small>
+              </span>
+              <span className="feed-price">{formatUsd(token.marketCapUsd)} MC</span>
+              <span className={`feed-chip ${(token.priceChange24h ?? 0) >= 0 ? 'up' : 'down'}`}>
+                {(token.priceChange24h ?? 0) > 0 ? '+' : ''}{(token.priceChange24h ?? 0).toFixed(1)}%
+              </span>
+              <span className="feed-chip">Vol {formatUsd(token.volume24hUsd)}</span>
+              <span className="feed-mini"><MessageCircle size={13} /> {formatNumber(token.trades24h)}</span>
+              <span className="feed-mini"><Users size={13} /> {formatNumber(token.holders ?? 0)}</span>
+              <ArrowRight size={16} className="feed-arrow" />
+            </Link>
           ))}
         </div>
       </section>

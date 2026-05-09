@@ -2878,11 +2878,11 @@ td small {
     transform 180ms ease,
     border-color 180ms ease,
     background 180ms ease;
+  animation: feed-rise 520ms ease both;
 }
 
 .coin-tape-item:hover,
-.launch-row:hover,
-.market-row:hover {
+.launch-row:hover {
   border-color: rgba(96, 165, 250, 0.34);
   background: rgba(255, 255, 255, 0.055);
   transform: translateY(-2px);
@@ -2960,6 +2960,157 @@ td small {
   padding-top: 20px;
 }
 
+.home-market-feed,
+.coin-list {
+  display: grid;
+  gap: 8px;
+}
+
+.feed-row,
+.coin-list-row {
+  position: relative;
+  display: grid;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 14px;
+  background:
+    linear-gradient(90deg, rgba(96, 165, 250, 0.065), transparent 34%),
+    rgba(255, 255, 255, 0.028);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+  animation: feed-rise 460ms ease both;
+}
+
+.feed-row {
+  grid-template-columns: 44px 48px minmax(160px, 1fr) 128px 76px 118px 76px 76px 24px;
+  padding: 8px 12px;
+}
+
+.feed-row::before,
+.coin-list-row::before,
+.market-row::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.07) 45%, transparent 62%);
+  opacity: 0;
+  transform: translateX(-60%);
+  transition:
+    opacity 180ms ease,
+    transform 520ms ease;
+  pointer-events: none;
+}
+
+.feed-row:hover,
+.coin-list-row:hover,
+.market-row:hover {
+  border-color: rgba(96, 165, 250, 0.35);
+  background:
+    linear-gradient(90deg, rgba(96, 165, 250, 0.11), rgba(52, 211, 153, 0.04) 52%, transparent),
+    rgba(255, 255, 255, 0.05);
+  box-shadow: 0 14px 42px rgba(59, 130, 246, 0.1);
+  transform: translateY(-2px);
+}
+
+.feed-row:hover::before,
+.coin-list-row:hover::before,
+.market-row:hover::before {
+  opacity: 1;
+  transform: translateX(70%);
+}
+
+.feed-row img,
+.coin-list-row img {
+  width: 48px;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.feed-rank,
+.rank {
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.feed-name,
+.coin-list-name {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.feed-name strong,
+.coin-list-name strong {
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-name small,
+.coin-list-name small {
+  color: rgba(255, 255, 255, 0.46);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.feed-price {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.feed-chip,
+.feed-mini,
+.coin-list-change {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 999px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.feed-chip.up,
+.coin-list-change.up {
+  border-color: rgba(52, 211, 153, 0.18);
+  background: rgba(52, 211, 153, 0.08);
+  color: #6ee7b7;
+}
+
+.feed-chip.down,
+.coin-list-change.down {
+  border-color: rgba(248, 113, 113, 0.18);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+}
+
+.feed-arrow {
+  color: rgba(255, 255, 255, 0.42);
+  transition: transform 180ms ease;
+}
+
+.feed-row:hover .feed-arrow {
+  color: #ffffff;
+  transform: translateX(3px);
+}
+
 .split-market {
   display: grid;
   grid-template-columns: minmax(320px, 0.64fr) minmax(0, 1fr);
@@ -3010,6 +3161,7 @@ td small {
     transform 180ms ease,
     border-color 180ms ease,
     background 180ms ease;
+  animation: feed-rise 460ms ease both;
 }
 
 .launch-row img {
@@ -3210,12 +3362,65 @@ td small {
   display: grid;
 }
 
+.coin-list-row {
+  grid-template-columns: 36px 54px minmax(180px, 1fr) 136px 136px 104px 76px 22px;
+  min-height: 74px;
+  padding: 9px 13px;
+}
+
+.coin-list-row img {
+  width: 54px;
+  border-radius: 12px;
+}
+
+.coin-list-stat {
+  display: grid;
+  gap: 3px;
+}
+
+.coin-list-stat small {
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.coin-list-stat strong {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+}
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.pagination-row button {
+  min-height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #ffffff;
+  font-weight: 850;
+}
+
+.pagination-row span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 13px;
+  font-weight: 850;
+}
+
 .market-table {
   display: grid;
   gap: 8px;
 }
 
 .market-row {
+  position: relative;
   display: grid;
   grid-template-columns: 34px 52px minmax(180px, 1fr) 130px 120px 96px 64px;
   gap: 12px;
@@ -3228,6 +3433,7 @@ td small {
     transform 180ms ease,
     border-color 180ms ease,
     background 180ms ease;
+  animation: feed-rise 460ms ease both;
 }
 
 .market-row img {
@@ -3376,6 +3582,29 @@ td small {
   font-size: 19px;
 }
 
+@keyframes feed-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
 @media (max-width: 1100px) {
   .launch-floor,
   .split-market,
@@ -3390,6 +3619,20 @@ td small {
   .market-console,
   .market-dashboard {
     grid-template-columns: 1fr;
+  }
+
+  .feed-row,
+  .coin-list-row,
+  .market-row {
+    grid-template-columns: 34px 50px minmax(0, 1fr) 94px 22px;
+  }
+
+  .feed-chip,
+  .feed-mini,
+  .coin-list-stat,
+  .coin-list-change,
+  .feed-row .feed-price {
+    display: none;
   }
 
   .launch-preview-rail {
@@ -3441,6 +3684,11 @@ td small {
 
   .market-row {
     grid-template-columns: 28px 48px minmax(0, 1fr);
+  }
+
+  .feed-row,
+  .coin-list-row {
+    grid-template-columns: 28px 46px minmax(0, 1fr) 20px;
   }
 
   .market-row > span:nth-of-type(n + 3),

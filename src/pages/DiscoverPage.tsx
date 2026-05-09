@@ -2,19 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Flame, Search, SlidersHorizontal, Sparkles, TrendingUp } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { TokenCard } from '../components/token/TokenCard';
 import { SourceBadge } from '../components/ui/SourceBadge';
 import { fetchLaunchData } from '../lib/launchData';
 import { formatNumber, formatUsd, timeAgo } from '../lib/format';
 import { getWatchlist } from '../lib/watchlist';
 
 const filters = ['top', 'new', 'bonding', 'graduated', 'watchlist'] as const;
+const pageSize = 10;
 
 export function DiscoverPage() {
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [filter, setFilter] = useState<(typeof filters)[number]>('top');
   const [advanced, setAdvanced] = useState(false);
+  const [page, setPage] = useState(1);
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const { data, isLoading } = useQuery({ queryKey: ['discover'], queryFn: fetchLaunchData });
   const allTokens = useMemo(() => data?.tokens ?? [], [data?.tokens]);
@@ -41,6 +42,12 @@ export function DiscoverPage() {
 
     return filtered.sort((a, b) => b.volume24hUsd - a.volume24hUsd);
   }, [allTokens, filter, query, watchlist]);
+  const pageCount = Math.max(1, Math.ceil(tokens.length / pageSize));
+  const visibleTokens = tokens.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, query, advanced]);
 
   return (
     <section className="page-section market-page simple-market">
@@ -109,9 +116,9 @@ export function DiscoverPage() {
       <div className={advanced ? 'market-results advanced' : 'market-results'}>
         {advanced ? (
           <div className="market-table">
-            {tokens.map((token, index) => (
+            {visibleTokens.map((token, index) => (
               <Link to={`/token/${token.address}`} className="market-row" key={token.address}>
-                <span className="rank">{index + 1}</span>
+                <span className="rank">{(page - 1) * pageSize + index + 1}</span>
                 <img src={token.imageUrl} alt="" />
                 <span className="market-row-name">
                   <strong>{token.name}</strong>
@@ -125,13 +132,48 @@ export function DiscoverPage() {
             ))}
           </div>
         ) : (
-          <div className="token-grid compact">
-            {tokens.map((token) => (
-              <TokenCard key={token.address} token={token} />
+          <div className="coin-list">
+            {visibleTokens.map((token, index) => (
+              <Link to={`/token/${token.address}`} className="coin-list-row" key={token.address}>
+                <span className="rank">{(page - 1) * pageSize + index + 1}</span>
+                <img src={token.imageUrl} alt="" />
+                <span className="coin-list-name">
+                  <strong>{token.name}</strong>
+                  <small>${token.symbol} · {timeAgo(token.createdAt)}</small>
+                </span>
+                <span className="coin-list-stat">
+                  <small>Market cap</small>
+                  <strong>{formatUsd(token.marketCapUsd)}</strong>
+                </span>
+                <span className="coin-list-stat">
+                  <small>24h volume</small>
+                  <strong>{formatUsd(token.volume24hUsd)}</strong>
+                </span>
+                <span className="coin-list-stat">
+                  <small>Bonding</small>
+                  <strong>{token.bondingProgress}%</strong>
+                </span>
+                <span className={`coin-list-change ${(token.priceChange24h ?? 0) >= 0 ? 'up' : 'down'}`}>
+                  {(token.priceChange24h ?? 0) > 0 ? '+' : ''}{(token.priceChange24h ?? 0).toFixed(1)}%
+                </span>
+                <ArrowUpRight size={17} />
+              </Link>
             ))}
           </div>
         )}
       </div>
+
+      {tokens.length > pageSize ? (
+        <div className="pagination-row">
+          <button type="button" disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
+            Previous
+          </button>
+          <span>Page {page} of {pageCount}</span>
+          <button type="button" disabled={page === pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}>
+            Next
+          </button>
+        </div>
+      ) : null}
 
       {!isLoading && tokens.length === 0 ? <div className="empty-state">No launches match this view.</div> : null}
     </section>
