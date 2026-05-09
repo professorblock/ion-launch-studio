@@ -1,0 +1,9 @@
+{
+  "name": "ION Launch",
+  "short_name": "ION Launch",
+  "description": "Launch, discover, and track ION community markets.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#070812"
+}

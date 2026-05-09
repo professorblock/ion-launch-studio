@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://launch.ionhub.io/sitemap.xml
