@@ -14,6 +14,7 @@ const labels = {
 export function StatusPage() {
   const { data, isLoading } = useQuery({ queryKey: ['platform-status'], queryFn: fetchPlatformStatus });
   const statusLabel = isLoading ? 'Checking services' : data?.status === 'ok' ? 'Platform reachable' : data?.status === 'local' ? 'Local preview mode' : 'Status unavailable';
+  const deployment = data?.deployment;
 
   return (
     <section className="page-section status-page">
@@ -36,6 +37,13 @@ export function StatusPage() {
             <div className="status-missing">
               <span>Pending</span>
               <strong>{data.missing.join(', ')}</strong>
+            </div>
+          ) : null}
+          {deployment ? (
+            <div className="deployment-summary">
+              <span>Environment <strong>{deployment.environment}</strong></span>
+              <span>Branch <strong>{deployment.gitBranch ?? 'local'}</strong></span>
+              <span>Commit <strong>{deployment.gitCommit ? deployment.gitCommit.slice(0, 7) : 'local'}</strong></span>
             </div>
           ) : null}
         </div>

@@ -35,6 +35,7 @@ The app is Vercel-ready:
 
 Operational staging and go-live steps are documented in `OPERATIONS.md`.
 The branch and deployment flow is documented in `DEPLOYMENT.md`.
+Contribution standards are documented in `CONTRIBUTING.md`.
 
 ## Public Configuration
 
