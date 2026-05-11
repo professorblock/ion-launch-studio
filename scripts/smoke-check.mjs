@@ -4,6 +4,7 @@ const requiredFiles = [
   'api/bitquery.js',
   'api/metadata.js',
   'api/status.js',
+  'api/verify-fee.js',
   'src/pages/HomePage.tsx',
   'src/pages/DeskPage.tsx',
   'src/pages/DiscoverPage.tsx',

@@ -5,6 +5,7 @@ import { formatUnits, parseUnits, type Hex } from 'viem';
 import { externalLinks, feeConfig, featureFlags } from '../config/app';
 import { getLaunchPacket, saveLaunchPacket } from '../lib/launchPackets';
 import { pinLaunchMetadata } from '../lib/metadata';
+import { verifyFeeTransaction } from '../lib/feeVerification';
 import type { LaunchPacket } from '../types/launch';
 import { useWallet } from '../web3/WalletContext';
 
@@ -45,6 +46,7 @@ export function LaunchPage() {
   const [acknowledged, setAcknowledged] = useState(false);
   const [feeTxHash, setFeeTxHash] = useState<Hex>();
   const [feeStatus, setFeeStatus] = useState<LaunchPacket['feeStatus']>();
+  const [feeVerificationStatus, setFeeVerificationStatus] = useState<LaunchPacket['feeVerificationStatus']>();
   const [feeSubmittedAt, setFeeSubmittedAt] = useState<string>();
   const [feeConfirmedAt, setFeeConfirmedAt] = useState<string>();
   const [feeBlockNumber, setFeeBlockNumber] = useState<string>();
@@ -68,7 +70,8 @@ export function LaunchPage() {
   const hasFeeBalance = feeBalance !== undefined && feeAmount > 0n && feeBalance >= feeAmount;
   const formattedFeeBalance = feeBalance === undefined ? 'Not checked' : `${formatUnits(feeBalance, feeConfig.ionDecimals)} ION`;
   const currentFeeStatus = feeStatus ?? launchPacket?.feeStatus ?? (feeTxHash || launchPacket?.feeTxHash ? 'submitted' : undefined);
-  const feeSatisfied = feeReady && currentFeeStatus === 'confirmed';
+  const currentFeeVerificationStatus = feeVerificationStatus ?? launchPacket?.feeVerificationStatus;
+  const feeSatisfied = feeReady && currentFeeStatus === 'confirmed' && currentFeeVerificationStatus === 'verified';
   const canSubmitOrCheckFee = isConnected && onBnb && feeReady && !isFeePending && currentFeeStatus !== 'confirmed' && (feeTxHash ? true : hasFeeBalance);
   const feeButtonLabel = isFeePending
     ? feeTxHash
@@ -100,6 +103,7 @@ export function LaunchPage() {
     setImagePreview(packet.imagePreview);
     setFeeTxHash(packet.feeTxHash);
     setFeeStatus(packet.feeStatus ?? (packet.feeTxHash ? 'submitted' : undefined));
+    setFeeVerificationStatus(packet.feeVerificationStatus);
     setFeeSubmittedAt(packet.feeSubmittedAt);
     setFeeConfirmedAt(packet.feeConfirmedAt);
     setFeeBlockNumber(packet.feeBlockNumber);
@@ -198,6 +202,7 @@ export function LaunchPage() {
       imageGatewayUrl: metadata.imageGatewayUrl,
       feeTxHash,
       feeStatus,
+      feeVerificationStatus,
       feeSubmittedAt,
       feeConfirmedAt,
       feeBlockNumber,
@@ -235,20 +240,13 @@ export function LaunchPage() {
 
       const receipt = await waitForTransactionReceipt(hash);
       if (receipt.status === 'success') {
-        updateFeeRecord({
-          feeTxHash: hash,
-          feeStatus: 'confirmed',
-          feeSubmittedAt: submittedAt,
-          feeConfirmedAt: new Date().toISOString(),
-          feeBlockNumber: receipt.blockNumber?.toString(),
-          feeAmountIon: feeConfig.platformFeeIon,
-          feeTokenAddress: feeConfig.ionTokenAddress,
-          feeTreasuryAddress: feeConfig.treasuryAddress,
-        });
+        await verifySubmittedFee(hash, submittedAt, receipt.blockNumber?.toString());
       } else if (receipt.status === 'reverted') {
         updateFeeRecord({
           feeTxHash: hash,
           feeStatus: 'reverted',
+          feeVerificationStatus: 'mismatch',
+          feeVerificationMessage: 'Transaction reverted before the treasury transfer could complete.',
           feeSubmittedAt: submittedAt,
           feeAmountIon: feeConfig.platformFeeIon,
           feeTokenAddress: feeConfig.ionTokenAddress,
@@ -256,6 +254,16 @@ export function LaunchPage() {
         });
         setFeeError('The fee transaction reverted. No launch fee was confirmed.');
       } else {
+        updateFeeRecord({
+          feeTxHash: hash,
+          feeStatus: 'submitted',
+          feeVerificationStatus: 'unchecked',
+          feeVerificationMessage: 'Wallet receipt was still pending.',
+          feeSubmittedAt: submittedAt,
+          feeAmountIon: feeConfig.platformFeeIon,
+          feeTokenAddress: feeConfig.ionTokenAddress,
+          feeTreasuryAddress: feeConfig.treasuryAddress,
+        });
         setFeeError('Transaction submitted. Confirmation is still pending; check again shortly.');
       }
     } catch (error) {
@@ -265,9 +273,91 @@ export function LaunchPage() {
     }
   }
 
+  async function verifySubmittedFee(hash: Hex, submittedAt = feeSubmittedAt ?? new Date().toISOString(), fallbackBlockNumber?: string) {
+    setIsFeePending(true);
+    setFeeError(undefined);
+    try {
+      const result = await verifyFeeTransaction(hash);
+      if (result.status === 'pending') {
+        updateFeeRecord({
+          feeTxHash: hash,
+          feeStatus: 'submitted',
+          feeVerificationStatus: 'unchecked',
+          feeVerificationMessage: 'Transaction is still pending on BNB Chain.',
+          feeSubmittedAt: submittedAt,
+          feeAmountIon: feeConfig.platformFeeIon,
+          feeTokenAddress: feeConfig.ionTokenAddress,
+          feeTreasuryAddress: feeConfig.treasuryAddress,
+        });
+        setFeeError('Transaction submitted. Confirmation is still pending; check again shortly.');
+        return;
+      }
+
+      if (result.status === 'reverted') {
+        updateFeeRecord({
+          feeTxHash: hash,
+          feeStatus: 'reverted',
+          feeVerificationStatus: 'mismatch',
+          feeVerificationMessage: 'Transaction reverted on BNB Chain.',
+          feeSubmittedAt: submittedAt,
+          feeBlockNumber: result.blockNumber ?? fallbackBlockNumber,
+          feeAmountIon: feeConfig.platformFeeIon,
+          feeTokenAddress: feeConfig.ionTokenAddress,
+          feeTreasuryAddress: feeConfig.treasuryAddress,
+        });
+        setFeeError('The fee transaction reverted. No launch fee was confirmed.');
+        return;
+      }
+
+      if (!result.valid) {
+        updateFeeRecord({
+          feeTxHash: hash,
+          feeStatus: 'submitted',
+          feeVerificationStatus: 'mismatch',
+          feeVerificationMessage: result.reason ?? 'Transaction did not match the configured ION treasury transfer.',
+          feeSubmittedAt: submittedAt,
+          feeBlockNumber: result.blockNumber ?? fallbackBlockNumber,
+          feeAmountIon: feeConfig.platformFeeIon,
+          feeTokenAddress: feeConfig.ionTokenAddress,
+          feeTreasuryAddress: feeConfig.treasuryAddress,
+        });
+        setFeeError('Transaction confirmed, but it did not match the configured ION fee transfer.');
+        return;
+      }
+
+      updateFeeRecord({
+        feeTxHash: hash,
+        feeStatus: 'confirmed',
+        feeVerificationStatus: 'verified',
+        feeVerificationMessage: 'Verified against BNB Chain transfer logs.',
+        feeSubmittedAt: submittedAt,
+        feeConfirmedAt: new Date().toISOString(),
+        feeBlockNumber: result.blockNumber ?? fallbackBlockNumber,
+        feeAmountIon: feeConfig.platformFeeIon,
+        feeTokenAddress: feeConfig.ionTokenAddress,
+        feeTreasuryAddress: feeConfig.treasuryAddress,
+      });
+    } catch (error) {
+      updateFeeRecord({
+        feeTxHash: hash,
+        feeStatus: 'submitted',
+        feeVerificationStatus: 'unchecked',
+        feeVerificationMessage: 'Verification service was unavailable.',
+        feeSubmittedAt: submittedAt,
+        feeAmountIon: feeConfig.platformFeeIon,
+        feeTokenAddress: feeConfig.ionTokenAddress,
+        feeTreasuryAddress: feeConfig.treasuryAddress,
+      });
+      setFeeError(error instanceof Error ? error.message : 'Fee verification service unavailable.');
+    } finally {
+      setIsFeePending(false);
+    }
+  }
+
   function updateFeeRecord(record: Partial<LaunchPacket>) {
     if (record.feeTxHash) setFeeTxHash(record.feeTxHash);
     if (record.feeStatus) setFeeStatus(record.feeStatus);
+    if (record.feeVerificationStatus) setFeeVerificationStatus(record.feeVerificationStatus);
     if (record.feeSubmittedAt) setFeeSubmittedAt(record.feeSubmittedAt);
     if (record.feeConfirmedAt) setFeeConfirmedAt(record.feeConfirmedAt);
     if (record.feeBlockNumber) setFeeBlockNumber(record.feeBlockNumber);
@@ -402,8 +492,10 @@ export function LaunchPage() {
                   ? 'Platform fee confirmed'
                   : !feeReady
                     ? 'Platform fee configuration pending'
+                  : currentFeeVerificationStatus === 'mismatch'
+                    ? 'Platform fee needs review'
                     : currentFeeStatus === 'submitted'
-                      ? 'Platform fee submitted'
+                      ? 'Platform fee verification pending'
                       : 'Platform fee pending'}
               </li>
             </ul>
@@ -440,6 +532,12 @@ export function LaunchPage() {
               <div className="fee-box">
                 <span>Status</span>
                 <strong>{currentFeeStatus === 'confirmed' ? 'Confirmed' : currentFeeStatus === 'reverted' ? 'Reverted' : 'Submitted'}</strong>
+              </div>
+            ) : null}
+            {currentFeeVerificationStatus ? (
+              <div className="fee-box">
+                <span>Verification</span>
+                <strong>{currentFeeVerificationStatus === 'verified' ? 'Verified' : currentFeeVerificationStatus === 'mismatch' ? 'Needs review' : 'Pending'}</strong>
               </div>
             ) : null}
             {feeConfirmedAt ? (

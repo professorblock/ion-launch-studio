@@ -17,7 +17,7 @@ export function StudioPage() {
   const summary = useMemo(() => {
     return {
       total: packets.length,
-      feeReady: packets.filter((packet) => packet.feeStatus === 'confirmed').length,
+      feeReady: packets.filter((packet) => packet.feeStatus === 'confirmed' && packet.feeVerificationStatus === 'verified').length,
       metadataPinned: packets.filter((packet) => packet.metadataStatus === 'pinned').length,
     };
   }, [packets]);
@@ -143,6 +143,8 @@ export function StudioPage() {
 }
 
 function feeLabel(packet: LaunchPacket) {
+  if (packet.feeStatus === 'confirmed' && packet.feeVerificationStatus === 'verified') return 'Verified';
+  if (packet.feeVerificationStatus === 'mismatch') return 'Needs review';
   if (packet.feeStatus === 'confirmed') return 'Confirmed';
   if (packet.feeStatus === 'reverted') return 'Reverted';
   if (packet.feeTxHash) return 'Submitted';

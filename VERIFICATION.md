@@ -51,6 +51,8 @@ This checklist must be completed before enabling public transactional flows.
 - [ ] Test submitted fee transfer flow and reconcile hash against BNBScan.
 - [ ] Test confirmed fee transfer flow and confirm the creator packet records `feeStatus`, `feeBlockNumber`, and
       `feeConfirmedAt`.
+- [ ] Test `/api/verify-fee` with a valid fee transaction, a reverted transaction, a pending hash, and a confirmed
+      non-fee transaction.
 - [ ] Review all risk and fee copy.
 - [ ] Keep `VITE_ENABLE_LAUNCH_EXECUTION=false` until route calldata is verified.
 - [ ] Keep `VITE_ENABLE_TRADE_EXECUTION=false` until trade calldata and slippage behavior are verified.

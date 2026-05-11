@@ -51,10 +51,14 @@ The MVP fee is a user-signed ION ERC-20 transfer to the treasury wallet. The app
 confirmation status, confirmed block, fee amount, token address, and treasury address inside the creator packet for
 reconciliation. It does not split or burn funds automatically.
 
+Fee verification is read-only. `/api/verify-fee` checks the BNB Chain transaction receipt and confirms that the expected
+ION ERC-20 `Transfer` log paid the configured treasury at or above the configured platform fee. It never signs
+transactions and never stores private wallet data.
+
 Suggested initial operating process:
 
 1. Export treasury transfers weekly.
-2. Reconcile received ION against launch packets, confirmed transaction hashes, treasury address, and amount.
+2. Reconcile received ION against launch packets, verified transaction hashes, treasury address, and amount.
 3. Burn the configured share manually from treasury operations.
 4. Publish the burn transaction hash in the public fee/burn log.
 

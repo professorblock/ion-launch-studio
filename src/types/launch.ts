@@ -14,6 +14,8 @@ export interface LaunchPacket {
   imageGatewayUrl?: string;
   feeTxHash?: Hex;
   feeStatus?: 'submitted' | 'confirmed' | 'reverted';
+  feeVerificationStatus?: 'verified' | 'unchecked' | 'mismatch';
+  feeVerificationMessage?: string;
   feeSubmittedAt?: string;
   feeConfirmedAt?: string;
   feeBlockNumber?: string;

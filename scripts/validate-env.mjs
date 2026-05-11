@@ -36,6 +36,11 @@ const checks = [
     detail: 'PINATA_JWT is optional, but it must never be exposed as VITE_PINATA_JWT.',
   },
   {
+    name: 'BSC RPC stays server-side',
+    ok: !env.VITE_BSC_RPC_URL,
+    detail: 'Use BSC_RPC_URL only as a server-side override for read-only fee verification.',
+  },
+  {
     name: 'Four Meme proxy address set',
     ok: isAddress(env.VITE_FOUR_MEME_PROXY || env.FOUR_MEME_PROXY),
     detail: 'Set VITE_FOUR_MEME_PROXY and FOUR_MEME_PROXY for market-data filtering.',
