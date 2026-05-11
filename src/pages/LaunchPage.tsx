@@ -77,6 +77,15 @@ export function LaunchPage() {
   const currentFeeStatus = feeStatus ?? launchPacket?.feeStatus ?? (feeTxHash || launchPacket?.feeTxHash ? 'submitted' : undefined);
   const currentFeeVerificationStatus = feeVerificationStatus ?? launchPacket?.feeVerificationStatus;
   const feeSatisfied = feeReady && currentFeeStatus === 'confirmed' && currentFeeVerificationStatus === 'verified';
+  const launchExecutionEnabled = featureFlags.launchExecution;
+  const hasLaunchImage = Boolean(imagePreview?.startsWith('data:image/'));
+  const launchReadyChecks = [
+    { label: 'Execution is enabled on this preview', ready: launchExecutionEnabled },
+    { label: 'Launch profile is saved', ready: Boolean(launchPacket) },
+    { label: 'Square image is uploaded', ready: hasLaunchImage },
+    { label: 'ION fee is verified', ready: feeSatisfied },
+  ];
+  const canCreateToken = launchReadyChecks.every((check) => check.ready) && !isLaunching;
   const canSubmitOrCheckFee = isConnected && onBnb && feeReady && !isFeePending && currentFeeStatus !== 'confirmed' && (feeTxHash ? true : hasFeeBalance);
   const feeButtonLabel = isFeePending
     ? feeTxHash
@@ -87,7 +96,6 @@ export function LaunchPage() {
       : feeTxHash
         ? 'Check confirmation'
         : 'Pay fee';
-  const launchExecutionEnabled = featureFlags.launchExecution;
 
   useEffect(() => {
     if (!packetId) return;
@@ -371,15 +379,16 @@ export function LaunchPage() {
     if (record.feeConfirmedAt) setFeeConfirmedAt(record.feeConfirmedAt);
     if (record.feeBlockNumber) setFeeBlockNumber(record.feeBlockNumber);
 
-    if (launchPacket) {
-      const nextPacket = { ...launchPacket, ...record };
-      setLaunchPacket(nextPacket);
+    setLaunchPacket((currentPacket) => {
+      if (!currentPacket) return currentPacket;
+      const nextPacket = { ...currentPacket, ...record };
       saveLaunchPacket(nextPacket);
-    }
+      return nextPacket;
+    });
   }
 
   async function executeLaunch() {
-    if (!launchPacket || !address || !feeSatisfied || !imagePreview?.startsWith('data:image/')) return;
+    if (!launchPacket || !address || !feeSatisfied || !hasLaunchImage) return;
     setIsLaunching(true);
     setLaunchError(undefined);
     try {
@@ -628,12 +637,19 @@ export function LaunchPage() {
             <button
               className={`button ${launchExecutionEnabled ? 'button-primary' : 'button-muted'} full-width`}
               type="button"
-              disabled={!launchExecutionEnabled || !feeSatisfied || !launchPacket || !imagePreview?.startsWith('data:image/') || isLaunching}
+              disabled={!canCreateToken}
               onClick={() => void executeLaunch()}
             >
               {isLaunching ? 'Confirming launch' : launchTxHash ? 'Launch submitted' : launchExecutionEnabled ? 'Create token' : 'Launch route locked'}
               <ArrowRight size={16} />
             </button>
+            {!canCreateToken ? (
+              <ul className="check-list launch-ready-list">
+                {launchReadyChecks.map((check) => (
+                  <li key={check.label} className={check.ready ? 'done' : ''}>{check.label}</li>
+                ))}
+              </ul>
+            ) : null}
             {launchError ? <div className="fee-error">{launchError}</div> : null}
             {launchTxHash ? (
               <a className="tx-link" href={externalLinks.bscScanTx(launchTxHash)} target="_blank" rel="noreferrer">
