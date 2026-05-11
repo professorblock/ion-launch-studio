@@ -39,6 +39,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<Address>();
   const [chainId, setChainId] = useState<number>();
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isWalletAvailable, setIsWalletAvailable] = useState(false);
+  const [walletError, setWalletError] = useState<string>();
 
   const refreshChain = useCallback(async () => {
     const ethereum = getEthereum();
@@ -49,12 +51,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const connect = useCallback(async () => {
     const ethereum = getEthereum();
-    if (!ethereum) return;
+    setWalletError(undefined);
+    if (!ethereum) {
+      setIsWalletAvailable(false);
+      setWalletError('No browser wallet found. Open this page in MetaMask, Binance Wallet, Trust Wallet, or a browser with an EVM wallet extension.');
+      return;
+    }
+    setIsWalletAvailable(true);
     setIsConnecting(true);
     try {
       const accounts = (await ethereum.request({ method: 'eth_requestAccounts' })) as Address[];
+      if (!accounts[0]) {
+        setWalletError('No wallet account was selected.');
+        return;
+      }
       setAddress(accounts[0]);
       await refreshChain();
+    } catch (error) {
+      setWalletError(error instanceof Error ? error.message : 'Wallet connection was rejected or unavailable.');
     } finally {
       setIsConnecting(false);
     }
@@ -62,6 +76,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const disconnect = useCallback(() => {
     setAddress(undefined);
+    setWalletError(undefined);
   }, []);
 
   const switchToBnb = useCallback(async () => {
@@ -326,23 +341,34 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [address, chainId, waitForTransactionReceipt]);
 
   useEffect(() => {
+    const refreshAvailability = () => setIsWalletAvailable(Boolean(getEthereum()));
+    refreshAvailability();
+    const availabilityTimers = [
+      window.setTimeout(refreshAvailability, 500),
+      window.setTimeout(refreshAvailability, 1_500),
+    ];
+
     const ethereum = getEthereum();
-    if (!ethereum) return;
+    let handleAccounts: ((accounts: unknown) => void) | undefined;
+    let handleChain: ((nextChainId: unknown) => void) | undefined;
 
-    void refreshChain();
+    if (ethereum) {
+      void refreshChain();
 
-    const handleAccounts = (accounts: unknown) => {
-      const nextAccounts = accounts as Address[];
-      setAddress(nextAccounts[0] || undefined);
-    };
-    const handleChain = (nextChainId: unknown) => setChainId(normalizeChainId(nextChainId));
+      handleAccounts = (accounts: unknown) => {
+        const nextAccounts = accounts as Address[];
+        setAddress(nextAccounts[0] || undefined);
+      };
+      handleChain = (nextChainId: unknown) => setChainId(normalizeChainId(nextChainId));
 
-    ethereum.on?.('accountsChanged', handleAccounts);
-    ethereum.on?.('chainChanged', handleChain);
+      ethereum.on?.('accountsChanged', handleAccounts);
+      ethereum.on?.('chainChanged', handleChain);
+    }
 
     return () => {
-      ethereum.removeListener?.('accountsChanged', handleAccounts);
-      ethereum.removeListener?.('chainChanged', handleChain);
+      availabilityTimers.forEach((timer) => window.clearTimeout(timer));
+      if (handleAccounts) ethereum?.removeListener?.('accountsChanged', handleAccounts);
+      if (handleChain) ethereum?.removeListener?.('chainChanged', handleChain);
     };
   }, [refreshChain]);
 
@@ -352,6 +378,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       chainId,
       isConnected: Boolean(address),
       isConnecting,
+      isWalletAvailable,
+      walletError,
       connect,
       disconnect,
       switchToBnb,
@@ -375,12 +403,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       executeFourMemeSell,
       getIonBalance,
       isConnecting,
+      isWalletAvailable,
       quoteFourMemeBuy,
       quoteFourMemeSell,
       sendIonFee,
       signMessage,
       switchToBnb,
       waitForTransactionReceipt,
+      walletError,
     ],
   );
 

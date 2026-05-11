@@ -6,6 +6,8 @@ export interface WalletContextValue {
   chainId?: number;
   isConnected: boolean;
   isConnecting: boolean;
+  isWalletAvailable: boolean;
+  walletError?: string;
   connect: () => Promise<void>;
   disconnect: () => void;
   switchToBnb: () => Promise<void>;
