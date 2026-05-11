@@ -49,6 +49,8 @@ This checklist must be completed before enabling public transactional flows.
 - [ ] Test insufficient ION balance flow.
 - [ ] Test rejected transaction flow.
 - [ ] Test submitted fee transfer flow and reconcile hash against BNBScan.
+- [ ] Test confirmed fee transfer flow and confirm the creator packet records `feeStatus`, `feeBlockNumber`, and
+      `feeConfirmedAt`.
 - [ ] Review all risk and fee copy.
 - [ ] Keep `VITE_ENABLE_LAUNCH_EXECUTION=false` until route calldata is verified.
 - [ ] Keep `VITE_ENABLE_TRADE_EXECUTION=false` until trade calldata and slippage behavior are verified.

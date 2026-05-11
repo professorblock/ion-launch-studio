@@ -44,6 +44,10 @@ export function LaunchPage() {
   const [advanced, setAdvanced] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [feeTxHash, setFeeTxHash] = useState<Hex>();
+  const [feeStatus, setFeeStatus] = useState<LaunchPacket['feeStatus']>();
+  const [feeSubmittedAt, setFeeSubmittedAt] = useState<string>();
+  const [feeConfirmedAt, setFeeConfirmedAt] = useState<string>();
+  const [feeBlockNumber, setFeeBlockNumber] = useState<string>();
   const [imageError, setImageError] = useState<string>();
   const [feeError, setFeeError] = useState<string>();
   const [feeBalance, setFeeBalance] = useState<bigint>();
@@ -52,7 +56,7 @@ export function LaunchPage() {
   const [isPreparingPacket, setIsPreparingPacket] = useState(false);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
   const [isFeePending, setIsFeePending] = useState(false);
-  const { address, isConnected, chainId, switchToBnb, getIonBalance, sendIonFee } = useWallet();
+  const { address, isConnected, chainId, switchToBnb, getIonBalance, sendIonFee, waitForTransactionReceipt } = useWallet();
 
   const formReady = useMemo(() => {
     return form.name.trim().length >= 2 && /^[A-Z0-9]{2,12}$/.test(form.symbol.trim()) && form.description.trim().length >= 20;
@@ -63,7 +67,18 @@ export function LaunchPage() {
   const feeAmount = getConfiguredFeeAmount();
   const hasFeeBalance = feeBalance !== undefined && feeAmount > 0n && feeBalance >= feeAmount;
   const formattedFeeBalance = feeBalance === undefined ? 'Not checked' : `${formatUnits(feeBalance, feeConfig.ionDecimals)} ION`;
-  const feeSatisfied = !feeReady || Boolean(feeTxHash || launchPacket?.feeTxHash);
+  const currentFeeStatus = feeStatus ?? launchPacket?.feeStatus ?? (feeTxHash || launchPacket?.feeTxHash ? 'submitted' : undefined);
+  const feeSatisfied = feeReady && currentFeeStatus === 'confirmed';
+  const canSubmitOrCheckFee = isConnected && onBnb && feeReady && !isFeePending && currentFeeStatus !== 'confirmed' && (feeTxHash ? true : hasFeeBalance);
+  const feeButtonLabel = isFeePending
+    ? feeTxHash
+      ? 'Checking confirmation'
+      : 'Confirm in wallet'
+    : currentFeeStatus === 'confirmed'
+      ? 'Fee confirmed'
+      : feeTxHash
+        ? 'Check confirmation'
+        : 'Pay fee';
   const launchExecutionEnabled = featureFlags.launchExecution;
 
   useEffect(() => {
@@ -84,6 +99,10 @@ export function LaunchPage() {
     });
     setImagePreview(packet.imagePreview);
     setFeeTxHash(packet.feeTxHash);
+    setFeeStatus(packet.feeStatus ?? (packet.feeTxHash ? 'submitted' : undefined));
+    setFeeSubmittedAt(packet.feeSubmittedAt);
+    setFeeConfirmedAt(packet.feeConfirmedAt);
+    setFeeBlockNumber(packet.feeBlockNumber);
     setAcknowledged(true);
     setAdvanced(Boolean(packet.website || packet.x || packet.telegram));
   }, [packetId]);
@@ -178,6 +197,10 @@ export function LaunchPage() {
       imageUri: metadata.imageUri,
       imageGatewayUrl: metadata.imageGatewayUrl,
       feeTxHash,
+      feeStatus,
+      feeSubmittedAt,
+      feeConfirmedAt,
+      feeBlockNumber,
       metadataUri: metadata.uri,
       metadataGatewayUrl: metadata.gatewayUrl,
       metadataStatus: metadata.status === 'pinned' ? 'pinned' : metadata.status === 'unconfigured' ? 'unconfigured' : 'local',
@@ -194,29 +217,65 @@ export function LaunchPage() {
     setIsFeePending(true);
     setFeeError(undefined);
     try {
-      const hash = await sendIonFee({
+      const hash = feeTxHash ?? await sendIonFee({
         tokenAddress: feeConfig.ionTokenAddress,
         treasuryAddress: feeConfig.treasuryAddress,
         amountIon: feeConfig.platformFeeIon,
         decimals: feeConfig.ionDecimals,
       });
-      setFeeTxHash(hash);
-      const feeRecord = {
+      const submittedAt = feeSubmittedAt ?? new Date().toISOString();
+      updateFeeRecord({
         feeTxHash: hash,
-        feeSubmittedAt: new Date().toISOString(),
+        feeStatus: 'submitted',
+        feeSubmittedAt: submittedAt,
         feeAmountIon: feeConfig.platformFeeIon,
         feeTokenAddress: feeConfig.ionTokenAddress,
         feeTreasuryAddress: feeConfig.treasuryAddress,
-      };
-      if (launchPacket) {
-        const nextPacket = { ...launchPacket, ...feeRecord };
-        setLaunchPacket(nextPacket);
-        saveLaunchPacket(nextPacket);
+      });
+
+      const receipt = await waitForTransactionReceipt(hash);
+      if (receipt.status === 'success') {
+        updateFeeRecord({
+          feeTxHash: hash,
+          feeStatus: 'confirmed',
+          feeSubmittedAt: submittedAt,
+          feeConfirmedAt: new Date().toISOString(),
+          feeBlockNumber: receipt.blockNumber?.toString(),
+          feeAmountIon: feeConfig.platformFeeIon,
+          feeTokenAddress: feeConfig.ionTokenAddress,
+          feeTreasuryAddress: feeConfig.treasuryAddress,
+        });
+      } else if (receipt.status === 'reverted') {
+        updateFeeRecord({
+          feeTxHash: hash,
+          feeStatus: 'reverted',
+          feeSubmittedAt: submittedAt,
+          feeAmountIon: feeConfig.platformFeeIon,
+          feeTokenAddress: feeConfig.ionTokenAddress,
+          feeTreasuryAddress: feeConfig.treasuryAddress,
+        });
+        setFeeError('The fee transaction reverted. No launch fee was confirmed.');
+      } else {
+        setFeeError('Transaction submitted. Confirmation is still pending; check again shortly.');
       }
     } catch (error) {
       setFeeError(error instanceof Error ? error.message : 'ION fee transaction was not completed.');
     } finally {
       setIsFeePending(false);
+    }
+  }
+
+  function updateFeeRecord(record: Partial<LaunchPacket>) {
+    if (record.feeTxHash) setFeeTxHash(record.feeTxHash);
+    if (record.feeStatus) setFeeStatus(record.feeStatus);
+    if (record.feeSubmittedAt) setFeeSubmittedAt(record.feeSubmittedAt);
+    if (record.feeConfirmedAt) setFeeConfirmedAt(record.feeConfirmedAt);
+    if (record.feeBlockNumber) setFeeBlockNumber(record.feeBlockNumber);
+
+    if (launchPacket) {
+      const nextPacket = { ...launchPacket, ...record };
+      setLaunchPacket(nextPacket);
+      saveLaunchPacket(nextPacket);
     }
   }
 
@@ -338,7 +397,15 @@ export function LaunchPage() {
               <li className={formReady ? 'done' : ''}>Name, ticker, and story are ready</li>
               <li className={isConnected ? 'done' : ''}>{isConnected ? `Wallet ${address?.slice(0, 6)}... connected` : 'Wallet connection pending'}</li>
               <li className={onBnb ? 'done' : ''}>{isConnected ? 'BNB Chain selected' : 'Network checked after wallet connect'}</li>
-              <li className={feeSatisfied ? 'done' : ''}>{feeSatisfied ? 'Platform fee ready' : 'Platform fee pending'}</li>
+              <li className={feeSatisfied ? 'done' : ''}>
+                {feeSatisfied
+                  ? 'Platform fee confirmed'
+                  : !feeReady
+                    ? 'Platform fee configuration pending'
+                    : currentFeeStatus === 'submitted'
+                      ? 'Platform fee submitted'
+                      : 'Platform fee pending'}
+              </li>
             </ul>
             {isConnected && !onBnb ? (
               <button className="button button-muted full-width" type="button" onClick={() => void switchToBnb()}>
@@ -354,7 +421,7 @@ export function LaunchPage() {
             </div>
             <div className="fee-box">
               <span>Fee</span>
-              <strong>{feeConfig.platformFeeIon} ION</strong>
+              <strong>{feeReady ? `${feeConfig.platformFeeIon} ION` : 'Not configured'}</strong>
             </div>
             <div className="fee-box">
               <span>Balance</span>
@@ -363,12 +430,24 @@ export function LaunchPage() {
             <button
               className="button button-primary full-width"
               type="button"
-              disabled={!isConnected || !onBnb || !feeReady || !hasFeeBalance || isFeePending}
+              disabled={!canSubmitOrCheckFee}
               onClick={() => void collectFee()}
             >
-              {isFeePending ? 'Confirm in wallet' : feeTxHash ? 'Fee paid' : 'Pay fee'}
+              {feeButtonLabel}
             </button>
             {feeError ? <div className="fee-error">{feeError}</div> : null}
+            {currentFeeStatus ? (
+              <div className="fee-box">
+                <span>Status</span>
+                <strong>{currentFeeStatus === 'confirmed' ? 'Confirmed' : currentFeeStatus === 'reverted' ? 'Reverted' : 'Submitted'}</strong>
+              </div>
+            ) : null}
+            {feeConfirmedAt ? (
+              <div className="fee-box">
+                <span>Confirmed</span>
+                <strong>{feeBlockNumber ? `Block ${feeBlockNumber}` : 'Recorded'}</strong>
+              </div>
+            ) : null}
             {feeTxHash ? (
               <a className="tx-link" href={externalLinks.bscScanTx(feeTxHash)} target="_blank" rel="noreferrer">
                 <CheckCircle2 size={16} />

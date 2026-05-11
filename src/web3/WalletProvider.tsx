@@ -18,6 +18,11 @@ interface InjectedEthereum {
   removeListener?: (event: string, handler: (...args: unknown[]) => void) => void;
 }
 
+interface EthereumTransactionReceipt {
+  status?: Hex;
+  blockNumber?: Hex;
+}
+
 function getEthereum() {
   return typeof window !== 'undefined' ? (window.ethereum as InjectedEthereum | undefined) : undefined;
 }
@@ -145,6 +150,33 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     [address, chainId, getIonBalance],
   );
 
+  const waitForTransactionReceipt = useCallback<WalletContextValue['waitForTransactionReceipt']>(async (hash, params) => {
+    const ethereum = getEthereum();
+    if (!ethereum) throw new Error('Wallet not available');
+
+    const timeoutMs = params?.timeoutMs ?? 120_000;
+    const intervalMs = params?.intervalMs ?? 3_000;
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() <= deadline) {
+      const receipt = (await ethereum.request({
+        method: 'eth_getTransactionReceipt',
+        params: [hash],
+      })) as EthereumTransactionReceipt | null;
+
+      if (receipt) {
+        return {
+          status: receipt.status === '0x1' ? 'success' : 'reverted',
+          blockNumber: receipt.blockNumber ? BigInt(receipt.blockNumber) : undefined,
+        };
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
+    }
+
+    return { status: 'pending' };
+  }, []);
+
   useEffect(() => {
     const ethereum = getEthereum();
     if (!ethereum) return;
@@ -177,8 +209,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       switchToBnb,
       getIonBalance,
       sendIonFee,
+      waitForTransactionReceipt,
     }),
-    [address, chainId, connect, disconnect, getIonBalance, isConnecting, sendIonFee, switchToBnb],
+    [address, chainId, connect, disconnect, getIonBalance, isConnecting, sendIonFee, switchToBnb, waitForTransactionReceipt],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

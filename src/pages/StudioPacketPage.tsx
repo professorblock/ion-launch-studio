@@ -69,8 +69,9 @@ export function StudioPacketPage() {
             <span>Ticker <strong>${packet.symbol}</strong></span>
             <span>Metadata <strong>{packet.metadataStatus === 'pinned' ? 'Pinned' : packet.metadataStatus === 'unconfigured' ? 'Unconfigured' : 'Local'}</strong></span>
             <span>Image <strong>{packet.imageUri ? 'Pinned' : packet.imagePreview ? 'Local' : 'Not set'}</strong></span>
-            <span>Fee <strong>{packet.feeTxHash ? 'Submitted' : 'Pending'}</strong></span>
+            <span>Fee <strong>{feeLabel(packet)}</strong></span>
             <span>Fee amount <strong>{packet.feeAmountIon ? `${packet.feeAmountIon} ION` : 'Not set'}</strong></span>
+            <span>Fee block <strong>{packet.feeBlockNumber ?? 'Pending'}</strong></span>
             <span>Website <strong>{packet.website || 'Not set'}</strong></span>
             <span>Telegram <strong>{packet.telegram || 'Not set'}</strong></span>
           </div>
@@ -89,8 +90,8 @@ export function StudioPacketPage() {
               <li className={packet.metadataStatus === 'pinned' ? 'done' : ''}>
                 {packet.metadataStatus === 'pinned' ? 'Metadata pinned' : 'Metadata local'}
               </li>
-              <li className={packet.feeTxHash ? 'done' : ''}>
-                {packet.feeTxHash ? 'ION fee transaction submitted' : 'ION fee pending'}
+              <li className={packet.feeStatus === 'confirmed' ? 'done' : ''}>
+                {packet.feeStatus === 'confirmed' ? 'ION fee transaction confirmed' : packet.feeTxHash ? 'ION fee transaction submitted' : 'ION fee pending'}
               </li>
               <li>Final route verification pending</li>
             </ul>
@@ -122,7 +123,9 @@ export function StudioPacketPage() {
               <span>Metadata <strong>{packet.metadataUri ? 'Pinned' : 'Local'}</strong></span>
               <span>Image <strong>{packet.imageUri ? 'Pinned' : packet.imagePreview ? 'Local' : 'Not set'}</strong></span>
               <span>Fee tx <strong>{packet.feeTxHash ? compactAddress(packet.feeTxHash, 6) : 'Pending'}</strong></span>
-              <span>Fee time <strong>{packet.feeSubmittedAt ? timeAgo(packet.feeSubmittedAt) : 'Pending'}</strong></span>
+              <span>Submitted <strong>{packet.feeSubmittedAt ? timeAgo(packet.feeSubmittedAt) : 'Pending'}</strong></span>
+              <span>Confirmed <strong>{packet.feeConfirmedAt ? timeAgo(packet.feeConfirmedAt) : 'Pending'}</strong></span>
+              <span>Block <strong>{packet.feeBlockNumber ?? 'Pending'}</strong></span>
             </div>
             {packet.metadataUri ? (
               <a className="external-card" href={packet.metadataGatewayUrl || packet.metadataUri.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')} target="_blank" rel="noreferrer">
@@ -156,4 +159,11 @@ export function StudioPacketPage() {
       </div>
     </section>
   );
+}
+
+function feeLabel(packet: LaunchPacket) {
+  if (packet.feeStatus === 'confirmed') return 'Confirmed';
+  if (packet.feeStatus === 'reverted') return 'Reverted';
+  if (packet.feeTxHash) return 'Submitted';
+  return 'Pending';
 }

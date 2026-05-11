@@ -19,6 +19,13 @@ export interface WalletContextValue {
     amountIon: string;
     decimals: number;
   }) => Promise<Hex>;
+  waitForTransactionReceipt: (hash: Hex, params?: {
+    timeoutMs?: number;
+    intervalMs?: number;
+  }) => Promise<{
+    status: 'pending' | 'success' | 'reverted';
+    blockNumber?: bigint;
+  }>;
 }
 
 export const WalletContext = createContext<WalletContextValue | undefined>(undefined);

@@ -47,13 +47,14 @@ production fee collection.
 
 ## Fee Operations
 
-The MVP fee is a user-signed ION ERC-20 transfer to the treasury wallet. The app stores the submitted transaction hash
-inside the creator packet for reconciliation. It does not split or burn funds automatically.
+The MVP fee is a user-signed ION ERC-20 transfer to the treasury wallet. The app stores the submitted transaction hash,
+confirmation status, confirmed block, fee amount, token address, and treasury address inside the creator packet for
+reconciliation. It does not split or burn funds automatically.
 
 Suggested initial operating process:
 
 1. Export treasury transfers weekly.
-2. Reconcile received ION against launch packets, submitted transaction hashes, treasury address, and amount.
+2. Reconcile received ION against launch packets, confirmed transaction hashes, treasury address, and amount.
 3. Burn the configured share manually from treasury operations.
 4. Publish the burn transaction hash in the public fee/burn log.
 
@@ -64,8 +65,8 @@ Launch packets are local browser records, not account-backed database records.
 1. Ask creators to export JSON before clearing browser data.
 2. Use Studio import if a packet needs to be restored on another device.
 3. Treat exported packet JSON as operational metadata, not proof that an on-chain launch happened.
-4. Reconcile packet `feeTxHash`, `feeAmountIon`, `feeTokenAddress`, and `feeTreasuryAddress` with BNBScan and treasury
-   records before marking a launch fee as received.
+4. Reconcile packet `feeTxHash`, `feeStatus`, `feeBlockNumber`, `feeAmountIon`, `feeTokenAddress`, and
+   `feeTreasuryAddress` with BNBScan and treasury records before marking a launch fee as received.
 
 ## Desk and Draft Operations
 

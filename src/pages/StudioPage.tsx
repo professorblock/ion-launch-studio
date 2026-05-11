@@ -17,7 +17,7 @@ export function StudioPage() {
   const summary = useMemo(() => {
     return {
       total: packets.length,
-      feeReady: packets.filter((packet) => packet.feeTxHash).length,
+      feeReady: packets.filter((packet) => packet.feeStatus === 'confirmed').length,
       metadataPinned: packets.filter((packet) => packet.metadataStatus === 'pinned').length,
     };
   }, [packets]);
@@ -75,7 +75,7 @@ export function StudioPage() {
             <strong>{summary.total}</strong>
           </div>
           <div>
-            <span>Fee ready</span>
+            <span>Fee confirmed</span>
             <strong>{summary.feeReady}</strong>
           </div>
           <div>
@@ -118,7 +118,7 @@ export function StudioPage() {
               <div className="packet-grid">
                 <span>Ticker <strong>${packet.symbol}</strong></span>
                 <span>Created <strong>{timeAgo(packet.createdAt)}</strong></span>
-                <span>Fee <strong>{packet.feeTxHash ? 'Submitted' : 'Pending'}</strong></span>
+                <span>Fee <strong>{feeLabel(packet)}</strong></span>
                 <span>Metadata <strong>{packet.metadataStatus === 'pinned' ? 'Pinned' : packet.metadataStatus === 'unconfigured' ? 'Unconfigured' : 'Local'}</strong></span>
                 <span>Image <strong>{packet.imageUri ? 'Pinned' : packet.imagePreview ? 'Local' : 'Not set'}</strong></span>
               </div>
@@ -140,6 +140,13 @@ export function StudioPage() {
       )}
     </section>
   );
+}
+
+function feeLabel(packet: LaunchPacket) {
+  if (packet.feeStatus === 'confirmed') return 'Confirmed';
+  if (packet.feeStatus === 'reverted') return 'Reverted';
+  if (packet.feeTxHash) return 'Submitted';
+  return 'Pending';
 }
 
 function normalizeImportedPackets(value: unknown): LaunchPacket[] {

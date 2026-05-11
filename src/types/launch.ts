@@ -13,7 +13,10 @@ export interface LaunchPacket {
   imageUri?: string;
   imageGatewayUrl?: string;
   feeTxHash?: Hex;
+  feeStatus?: 'submitted' | 'confirmed' | 'reverted';
   feeSubmittedAt?: string;
+  feeConfirmedAt?: string;
+  feeBlockNumber?: string;
   feeAmountIon?: string;
   feeTokenAddress?: string;
   feeTreasuryAddress?: string;
