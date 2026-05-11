@@ -35,6 +35,15 @@ interface WalletRpcError {
   message?: string;
 }
 
+interface Eip6963ProviderDetail {
+  info: {
+    uuid?: string;
+    name?: string;
+    rdns?: string;
+  };
+  provider: InjectedEthereum;
+}
+
 declare global {
   interface Window {
     BinanceChain?: InjectedEthereum;
@@ -45,16 +54,17 @@ declare global {
   }
 }
 
-function getEthereum() {
+function getEthereum(eip6963Providers: InjectedEthereum[] = []) {
   if (typeof window === 'undefined') return undefined;
   const primaryProvider = window.ethereum as InjectedEthereum | undefined;
-  const injected = [
+  const injected = uniqueProviders([
+    ...eip6963Providers,
     primaryProvider,
     ...(primaryProvider?.providers || []),
     window.BinanceChain,
     window.trustwallet,
     window.okxwallet?.ethereum,
-  ].filter(isInjectedEthereum);
+  ].filter(isInjectedEthereum));
 
   return injected.find((provider) => provider.isMetaMask)
     || injected.find((provider) => provider.isBinance)
@@ -65,6 +75,15 @@ function getEthereum() {
 
 function isInjectedEthereum(value: unknown): value is InjectedEthereum {
   return Boolean(value && typeof value === 'object' && 'request' in value && typeof (value as InjectedEthereum).request === 'function');
+}
+
+function uniqueProviders(providers: InjectedEthereum[]) {
+  const seen = new Set<InjectedEthereum>();
+  return providers.filter((provider) => {
+    if (seen.has(provider)) return false;
+    seen.add(provider);
+    return true;
+  });
 }
 
 function normalizeChainId(value: unknown) {
@@ -97,16 +116,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isWalletAvailable, setIsWalletAvailable] = useState(false);
   const [walletError, setWalletError] = useState<string>();
+  const [eip6963Providers, setEip6963Providers] = useState<InjectedEthereum[]>([]);
+
+  const getWalletProvider = useCallback(() => getEthereum(eip6963Providers), [eip6963Providers]);
 
   const refreshChain = useCallback(async () => {
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     if (!ethereum) return;
     const currentChainId = await ethereum.request({ method: 'eth_chainId' });
     setChainId(normalizeChainId(currentChainId));
-  }, []);
+  }, [getWalletProvider]);
 
   const connect = useCallback(async () => {
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     setWalletError(undefined);
     if (!ethereum) {
       setIsWalletAvailable(false);
@@ -128,7 +150,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsConnecting(false);
     }
-  }, [refreshChain]);
+  }, [getWalletProvider, refreshChain]);
 
   const disconnect = useCallback(() => {
     setAddress(undefined);
@@ -136,7 +158,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const switchToBnb = useCallback(async () => {
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     if (!ethereum) return;
 
     try {
@@ -160,10 +182,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
 
     setChainId(BNB_CHAIN_ID);
-  }, []);
+  }, [getWalletProvider]);
 
   const getIonBalance = useCallback<WalletContextValue['getIonBalance']>(async ({ tokenAddress, account }) => {
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     if (!ethereum) throw new Error('Wallet not available');
 
     const data = encodeFunctionData({
@@ -188,11 +210,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       functionName: 'balanceOf',
       data: result,
     });
-  }, []);
+  }, [getWalletProvider]);
 
   const sendIonFee = useCallback<WalletContextValue['sendIonFee']>(
     async ({ tokenAddress, treasuryAddress, amountIon, decimals }) => {
-      const ethereum = getEthereum();
+      const ethereum = getWalletProvider();
       if (!ethereum || !address) throw new Error('Wallet not connected');
       if (chainId !== BNB_CHAIN_ID) throw new Error('BNB Chain is required');
 
@@ -220,11 +242,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       return hash;
     },
-    [address, chainId, getIonBalance],
+    [address, chainId, getIonBalance, getWalletProvider],
   );
 
   const waitForTransactionReceipt = useCallback<WalletContextValue['waitForTransactionReceipt']>(async (hash, params) => {
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     if (!ethereum) throw new Error('Wallet not available');
 
     const timeoutMs = params?.timeoutMs ?? 120_000;
@@ -248,19 +270,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
 
     return { status: 'pending' };
-  }, []);
+  }, [getWalletProvider]);
 
   const signMessage = useCallback<WalletContextValue['signMessage']>(async (message) => {
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     if (!ethereum || !address) throw new Error('Wallet not connected');
     return (await ethereum.request({
       method: 'personal_sign',
       params: [toHex(message), address],
     })) as `0x${string}`;
-  }, [address]);
+  }, [address, getWalletProvider]);
 
   const createFourMemeToken = useCallback<WalletContextValue['createFourMemeToken']>(async ({ tokenManager, createArg, signature }) => {
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     if (!ethereum || !address) throw new Error('Wallet not connected');
     if (chainId !== BNB_CHAIN_ID) throw new Error('BNB Chain is required');
 
@@ -286,10 +308,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       method: 'eth_sendTransaction',
       params: [{ from: address, to: tokenManager, data, value: toHex(launchFee) }],
     })) as `0x${string}`;
-  }, [address, chainId]);
+  }, [address, chainId, getWalletProvider]);
 
   const quoteFourMemeBuy = useCallback<WalletContextValue['quoteFourMemeBuy']>(async ({ helper, token, fundsWei }) => {
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     if (!ethereum) throw new Error('Wallet not available');
     const data = encodeFunctionData({
       abi: fourMemeHelperAbi,
@@ -311,10 +333,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       amountApproval: decoded[6],
       amountFunds: decoded[7],
     };
-  }, []);
+  }, [getWalletProvider]);
 
   const quoteFourMemeSell = useCallback<WalletContextValue['quoteFourMemeSell']>(async ({ helper, token, amountWei }) => {
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     if (!ethereum) throw new Error('Wallet not available');
     const data = encodeFunctionData({
       abi: fourMemeHelperAbi,
@@ -332,10 +354,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       funds: decoded[2],
       fee: decoded[3],
     };
-  }, []);
+  }, [getWalletProvider]);
 
   const executeFourMemeBuy = useCallback<WalletContextValue['executeFourMemeBuy']>(async ({ token, quote, slippageBps }) => {
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     if (!ethereum || !address) throw new Error('Wallet not connected');
     if (chainId !== BNB_CHAIN_ID) throw new Error('BNB Chain is required');
     if (quote.quote.toLowerCase() !== ZERO_ADDRESS) throw new Error('Only BNB quote trades are enabled.');
@@ -350,10 +372,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       method: 'eth_sendTransaction',
       params: [{ from: address, to: quote.tokenManager, data, value: toHex(quote.amountMsgValue) }],
     })) as `0x${string}`;
-  }, [address, chainId]);
+  }, [address, chainId, getWalletProvider]);
 
   const executeFourMemeSell = useCallback<WalletContextValue['executeFourMemeSell']>(async ({ token, quote, amountWei, slippageBps }) => {
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     if (!ethereum || !address) throw new Error('Wallet not connected');
     if (chainId !== BNB_CHAIN_ID) throw new Error('BNB Chain is required');
     if (quote.quote.toLowerCase() !== ZERO_ADDRESS) throw new Error('Only BNB quote trades are enabled.');
@@ -394,17 +416,35 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       params: [{ from: address, to: quote.tokenManager, data, value: '0x0' }],
     })) as `0x${string}`;
     return { approveHash, sellHash };
-  }, [address, chainId, waitForTransactionReceipt]);
+  }, [address, chainId, getWalletProvider, waitForTransactionReceipt]);
 
   useEffect(() => {
-    const refreshAvailability = () => setIsWalletAvailable(Boolean(getEthereum()));
+    if (typeof window === 'undefined') return;
+
+    const providers = new Map<string, InjectedEthereum>();
+    const addProvider = (detail?: Eip6963ProviderDetail) => {
+      if (!detail || !isInjectedEthereum(detail.provider)) return;
+      const key = detail.info.uuid || detail.info.rdns || detail.info.name || String(providers.size);
+      providers.set(key, detail.provider);
+      setEip6963Providers(Array.from(providers.values()));
+    };
+    const handleProvider = (event: Event) => addProvider((event as CustomEvent<Eip6963ProviderDetail>).detail);
+
+    window.addEventListener('eip6963:announceProvider', handleProvider);
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+
+    return () => window.removeEventListener('eip6963:announceProvider', handleProvider);
+  }, []);
+
+  useEffect(() => {
+    const refreshAvailability = () => setIsWalletAvailable(Boolean(getWalletProvider()));
     refreshAvailability();
     const availabilityTimers = [
       window.setTimeout(refreshAvailability, 500),
       window.setTimeout(refreshAvailability, 1_500),
     ];
 
-    const ethereum = getEthereum();
+    const ethereum = getWalletProvider();
     let handleAccounts: ((accounts: unknown) => void) | undefined;
     let handleChain: ((nextChainId: unknown) => void) | undefined;
 
@@ -426,7 +466,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (handleAccounts) ethereum?.removeListener?.('accountsChanged', handleAccounts);
       if (handleChain) ethereum?.removeListener?.('chainChanged', handleChain);
     };
-  }, [refreshChain]);
+  }, [getWalletProvider, refreshChain]);
 
   const value = useMemo<WalletContextValue>(
     () => ({
