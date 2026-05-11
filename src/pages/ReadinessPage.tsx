@@ -14,6 +14,7 @@ const productChecks = [
 
 export function ReadinessPage() {
   const { data } = useQuery({ queryKey: ['readiness-status'], queryFn: fetchPlatformStatus });
+  const deployment = data?.deployment;
   const serviceChecks = data
     ? Object.entries(data.services).map(([key, ready]) => ({ label: key.replace(/([A-Z])/g, ' $1'), ready }))
     : [];
@@ -34,6 +35,8 @@ export function ReadinessPage() {
             <strong>Current network</strong>
           </div>
           <div className="stat-list">
+            <span>Environment <strong>{deployment?.environment ?? 'local'}</strong></span>
+            <span>Branch <strong>{deployment?.gitBranch ?? 'local'}</strong></span>
             <span>BNB Chain <strong>{chainConfig.bnbChainId}</strong></span>
             <span>Proxy <strong>{chainConfig.fourMemeProxy.slice(0, 10)}...</strong></span>
             <span>ION token <strong>{feeConfig.ionTokenAddress ? 'Configured' : 'Pending'}</strong></span>

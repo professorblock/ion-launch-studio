@@ -67,8 +67,10 @@ export function StudioPacketPage() {
           <div className="packet-grid packet-grid-wide">
             <span>Name <strong>{packet.name}</strong></span>
             <span>Ticker <strong>${packet.symbol}</strong></span>
-            <span>Metadata <strong>{packet.metadataStatus === 'pinned' ? 'Pinned' : 'Local'}</strong></span>
-            <span>Fee <strong>{packet.feeTxHash ? 'Confirmed' : 'Pending'}</strong></span>
+            <span>Metadata <strong>{packet.metadataStatus === 'pinned' ? 'Pinned' : packet.metadataStatus === 'unconfigured' ? 'Unconfigured' : 'Local'}</strong></span>
+            <span>Image <strong>{packet.imageUri ? 'Pinned' : packet.imagePreview ? 'Local' : 'Not set'}</strong></span>
+            <span>Fee <strong>{packet.feeTxHash ? 'Submitted' : 'Pending'}</strong></span>
+            <span>Fee amount <strong>{packet.feeAmountIon ? `${packet.feeAmountIon} ION` : 'Not set'}</strong></span>
             <span>Website <strong>{packet.website || 'Not set'}</strong></span>
             <span>Telegram <strong>{packet.telegram || 'Not set'}</strong></span>
           </div>
@@ -88,7 +90,7 @@ export function StudioPacketPage() {
                 {packet.metadataStatus === 'pinned' ? 'Metadata pinned' : 'Metadata local'}
               </li>
               <li className={packet.feeTxHash ? 'done' : ''}>
-                {packet.feeTxHash ? 'ION fee transaction linked' : 'ION fee pending'}
+                {packet.feeTxHash ? 'ION fee transaction submitted' : 'ION fee pending'}
               </li>
               <li>Final route verification pending</li>
             </ul>
@@ -117,12 +119,26 @@ export function StudioPacketPage() {
           <div className="side-card">
             <strong>Linked records</strong>
             <div className="stat-list">
-              <span>Metadata <strong>{packet.metadataUri ? 'Available' : 'Local'}</strong></span>
+              <span>Metadata <strong>{packet.metadataUri ? 'Pinned' : 'Local'}</strong></span>
+              <span>Image <strong>{packet.imageUri ? 'Pinned' : packet.imagePreview ? 'Local' : 'Not set'}</strong></span>
               <span>Fee tx <strong>{packet.feeTxHash ? compactAddress(packet.feeTxHash, 6) : 'Pending'}</strong></span>
+              <span>Fee time <strong>{packet.feeSubmittedAt ? timeAgo(packet.feeSubmittedAt) : 'Pending'}</strong></span>
             </div>
             {packet.metadataUri ? (
-              <a className="external-card" href={packet.metadataUri.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')} target="_blank" rel="noreferrer">
+              <a className="external-card" href={packet.metadataGatewayUrl || packet.metadataUri.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')} target="_blank" rel="noreferrer">
                 Metadata
+                <ExternalLink size={16} />
+              </a>
+            ) : null}
+            {packet.imageUri ? (
+              <a className="external-card" href={packet.imageGatewayUrl || packet.imageUri.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')} target="_blank" rel="noreferrer">
+                Image
+                <ExternalLink size={16} />
+              </a>
+            ) : null}
+            {packet.feeTxHash ? (
+              <a className="external-card" href={`https://bscscan.com/tx/${packet.feeTxHash}`} target="_blank" rel="noreferrer">
+                Fee transaction
                 <ExternalLink size={16} />
               </a>
             ) : null}

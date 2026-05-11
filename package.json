@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "smoke": "node scripts/smoke-check.mjs",
     "validate:env": "node scripts/validate-env.mjs",
-    "readiness": "node scripts/readiness-check.mjs"
+    "readiness": "node scripts/readiness-check.mjs",
+    "ship:check": "npm run lint && npm run build && npm run smoke && npm run readiness && npm run validate:env"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.7",

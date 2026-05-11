@@ -118,8 +118,9 @@ export function StudioPage() {
               <div className="packet-grid">
                 <span>Ticker <strong>${packet.symbol}</strong></span>
                 <span>Created <strong>{timeAgo(packet.createdAt)}</strong></span>
-                <span>Fee <strong>{packet.feeTxHash ? 'Confirmed' : 'Pending'}</strong></span>
-                <span>Metadata <strong>{packet.metadataStatus === 'pinned' ? 'Pinned' : 'Local'}</strong></span>
+                <span>Fee <strong>{packet.feeTxHash ? 'Submitted' : 'Pending'}</strong></span>
+                <span>Metadata <strong>{packet.metadataStatus === 'pinned' ? 'Pinned' : packet.metadataStatus === 'unconfigured' ? 'Unconfigured' : 'Local'}</strong></span>
+                <span>Image <strong>{packet.imageUri ? 'Pinned' : packet.imagePreview ? 'Local' : 'Not set'}</strong></span>
               </div>
               <div className="studio-card-footer">
                 <span className="status-pill">Route verification</span>

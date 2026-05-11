@@ -5,7 +5,7 @@ interface MetadataInput {
   website?: string;
   x?: string;
   telegram?: string;
-  image?: string;
+  imageDataUrl?: string;
 }
 
 interface MetadataResponse {
@@ -13,6 +13,8 @@ interface MetadataResponse {
   ipfsHash?: string;
   uri?: string;
   gatewayUrl?: string;
+  imageUri?: string;
+  imageGatewayUrl?: string;
 }
 
 export async function pinLaunchMetadata(input: MetadataInput): Promise<MetadataResponse> {

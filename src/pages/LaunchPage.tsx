@@ -1,9 +1,9 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, Flame, ImagePlus, Rocket, ShieldCheck, Sparkles, Tag, WalletCards } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ClipboardCheck, ImagePlus, Rocket, ShieldCheck, SlidersHorizontal, WalletCards } from 'lucide-react';
 import { formatUnits, parseUnits, type Hex } from 'viem';
-import { feeConfig, externalLinks, featureFlags } from '../config/app';
-import { getLastLaunchPacket, getLaunchPacket, saveLaunchPacket } from '../lib/launchPackets';
+import { externalLinks, feeConfig, featureFlags } from '../config/app';
+import { getLaunchPacket, saveLaunchPacket } from '../lib/launchPackets';
 import { pinLaunchMetadata } from '../lib/metadata';
 import type { LaunchPacket } from '../types/launch';
 import { useWallet } from '../web3/WalletContext';
@@ -26,6 +26,8 @@ const initialForm: LaunchFormState = {
   telegram: '',
 };
 
+const maxImageBytes = 1_500_000;
+
 function getConfiguredFeeAmount() {
   try {
     return parseUnits(feeConfig.platformFeeIon, feeConfig.ionDecimals);
@@ -37,11 +39,12 @@ function getConfiguredFeeAmount() {
 export function LaunchPage() {
   const [searchParams] = useSearchParams();
   const packetId = searchParams.get('packet');
-  const [step, setStep] = useState<'type' | 'form'>('type');
   const [form, setForm] = useState(initialForm);
   const [imagePreview, setImagePreview] = useState<string>();
+  const [advanced, setAdvanced] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [feeTxHash, setFeeTxHash] = useState<Hex>();
+  const [imageError, setImageError] = useState<string>();
   const [feeError, setFeeError] = useState<string>();
   const [feeBalance, setFeeBalance] = useState<bigint>();
   const [launchPacket, setLaunchPacket] = useState<LaunchPacket>();
@@ -64,33 +67,25 @@ export function LaunchPage() {
   const launchExecutionEnabled = featureFlags.launchExecution;
 
   useEffect(() => {
-    const packet = packetId ? getLaunchPacket(packetId) : getLastLaunchPacket();
+    if (!packetId) return;
+    const packet = getLaunchPacket(packetId);
 
-    if (!packet) {
-      if (packetId) {
-        setStep('form');
-        setLoadedPacketId(undefined);
-        setLaunchPacket(undefined);
-      }
-      return;
-    }
+    if (!packet) return;
 
     setLaunchPacket(packet);
-    if (packetId) {
-      setStep('form');
-      setLoadedPacketId(packet.id);
-      setForm({
-        name: packet.name,
-        symbol: packet.symbol,
-        description: packet.description,
-        website: packet.website ?? '',
-        x: packet.x ?? '',
-        telegram: packet.telegram ?? '',
-      });
-      setImagePreview(packet.imagePreview);
-      setFeeTxHash(packet.feeTxHash);
-      setAcknowledged(true);
-    }
+    setLoadedPacketId(packet.id);
+    setForm({
+      name: packet.name,
+      symbol: packet.symbol,
+      description: packet.description,
+      website: packet.website ?? '',
+      x: packet.x ?? '',
+      telegram: packet.telegram ?? '',
+    });
+    setImagePreview(packet.imagePreview);
+    setFeeTxHash(packet.feeTxHash);
+    setAcknowledged(true);
+    setAdvanced(Boolean(packet.website || packet.x || packet.telegram));
   }, [packetId]);
 
   useEffect(() => {
@@ -126,10 +121,27 @@ export function LaunchPage() {
 
   function handleImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
     const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
-    if (!allowedTypes.includes(file.type) || file.size > 5 * 1024 * 1024) return;
-    setImagePreview(URL.createObjectURL(file));
+    if (!allowedTypes.includes(file.type)) {
+      setImageError('Use PNG, JPG, or WebP.');
+      return;
+    }
+    if (file.size > maxImageBytes) {
+      setImageError('Use an image under 1.5 MB for safe metadata upload.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setImagePreview(reader.result);
+        setImageError(undefined);
+      }
+    };
+    reader.onerror = () => setImageError('Could not read that image.');
+    reader.readAsDataURL(file);
   }
 
   async function submitLaunch(event: FormEvent<HTMLFormElement>) {
@@ -137,13 +149,20 @@ export function LaunchPage() {
     if (!formReady || !acknowledged) return;
     setIsPreparingPacket(true);
 
-    const metadata: { status: 'pinned' | 'unconfigured' | 'local'; uri?: string } = await pinLaunchMetadata({
+    const metadata: {
+      status: 'pinned' | 'unconfigured' | 'local';
+      uri?: string;
+      gatewayUrl?: string;
+      imageUri?: string;
+      imageGatewayUrl?: string;
+    } = await pinLaunchMetadata({
       name: form.name.trim(),
       symbol: form.symbol.trim(),
       description: form.description.trim(),
       website: normalizeOptionalUrl(form.website),
       x: normalizeOptionalUrl(form.x),
       telegram: normalizeOptionalUrl(form.telegram),
+      imageDataUrl: imagePreview?.startsWith('data:image/') ? imagePreview : undefined,
     }).catch(() => ({ status: 'local' as const }));
 
     const nextPacket: LaunchPacket = {
@@ -156,13 +175,17 @@ export function LaunchPage() {
       x: normalizeOptionalUrl(form.x),
       telegram: normalizeOptionalUrl(form.telegram),
       imagePreview,
+      imageUri: metadata.imageUri,
+      imageGatewayUrl: metadata.imageGatewayUrl,
       feeTxHash,
       metadataUri: metadata.uri,
+      metadataGatewayUrl: metadata.gatewayUrl,
       metadataStatus: metadata.status === 'pinned' ? 'pinned' : metadata.status === 'unconfigured' ? 'unconfigured' : 'local',
     };
 
     setLaunchPacket(nextPacket);
     saveLaunchPacket(nextPacket);
+    setLoadedPacketId(nextPacket.id);
     setIsPreparingPacket(false);
   }
 
@@ -178,8 +201,15 @@ export function LaunchPage() {
         decimals: feeConfig.ionDecimals,
       });
       setFeeTxHash(hash);
+      const feeRecord = {
+        feeTxHash: hash,
+        feeSubmittedAt: new Date().toISOString(),
+        feeAmountIon: feeConfig.platformFeeIon,
+        feeTokenAddress: feeConfig.ionTokenAddress,
+        feeTreasuryAddress: feeConfig.treasuryAddress,
+      };
       if (launchPacket) {
-        const nextPacket = { ...launchPacket, feeTxHash: hash };
+        const nextPacket = { ...launchPacket, ...feeRecord };
         setLaunchPacket(nextPacket);
         saveLaunchPacket(nextPacket);
       }
@@ -190,63 +220,34 @@ export function LaunchPage() {
     }
   }
 
-  if (step === 'type') {
-    return (
-      <section className="page-section wizard-shell">
-        <div className="wizard-heading">
-          <span className="step-label">Step 1 of 2 · Launch type</span>
-          <h1>What are you launching?</h1>
-          <p>Pick the workspace that fits your token. Each path keeps creation, fee status, and market setup inside ION Launch.</p>
-        </div>
-
-        <div className="type-grid">
-          <button className="type-card" type="button" onClick={() => setStep('form')}>
-            <span className="type-icon blue"><Rocket size={24} /></span>
-            <span>
-              <strong>New Token Launch</strong>
-              <small>Prepare a token, socials, fee status, and launch packet</small>
-            </span>
-            <ArrowRight size={20} />
-            <ul>
-              <li>Token profile and square media</li>
-              <li>ION-denominated platform fee</li>
-              <li>Curve, trade, and market pages after launch</li>
-              <li>Wallet-confirmed execution flow</li>
-            </ul>
-          </button>
-
-          <button className="type-card" type="button" onClick={() => setStep('form')}>
-            <span className="type-icon red"><Flame size={24} /></span>
-            <span>
-              <strong>Community Campaign</strong>
-              <small>Launch with stronger ION burn and treasury narrative</small>
-            </span>
-            <ArrowRight size={20} />
-            <ul>
-              <li>Higher visibility launch profile</li>
-              <li>Manual burn accounting at MVP stage</li>
-              <li>Creator and treasury transparency</li>
-              <li>Designed for ecosystem-first launches</li>
-            </ul>
-          </button>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section className="page-section launch-layout">
-      <div className="wizard-heading narrow">
-        <button className="back-link" type="button" onClick={() => setStep('type')}>
-          <ArrowLeft size={17} />
-          Back
-        </button>
-        <span className="step-label">Step 2 of 2 · Token profile</span>
-        <h1>Configure your launch.</h1>
+    <section className="page-section launch-simple">
+      <div className="launch-simple-head">
+        <span className="eyebrow">Launch</span>
+        <h1>Create a coin without contract code.</h1>
+        <p>Start with the profile people see first. Wallet, fee, metadata, and route readiness stay clear but secondary.</p>
       </div>
 
-      <div className="launch-grid">
-        <form className="launch-form" onSubmit={submitLaunch}>
+      <div className="launch-simple-grid">
+        <form className="launch-form launch-form-simple" onSubmit={submitLaunch}>
+          <div className="launch-step-row">
+            <span>1</span>
+            <strong>Coin basics</strong>
+          </div>
+          <label className="upload-box launch-upload">
+            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImage} />
+            {imagePreview ? (
+              <img src={imagePreview} alt="" />
+            ) : (
+              <span className="upload-empty">
+                <ImagePlus size={22} />
+                <strong>Upload square image</strong>
+                <small>PNG / JPG / WebP, under 1.5 MB</small>
+              </span>
+            )}
+          </label>
+          {imageError ? <div className="fee-error">{imageError}</div> : null}
+
           <div className="form-row">
             <label>
               Token name
@@ -259,100 +260,85 @@ export function LaunchPage() {
           </div>
 
           <label>
-            Description
+            Short story
             <textarea
               value={form.description}
               onChange={(event) => updateField('description', event.target.value)}
-              placeholder="Describe the token, community, and launch intent."
+              placeholder="What is this coin, why should the community care, and what makes it fun?"
             />
           </label>
 
-          <label className="upload-box">
-            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImage} />
-            {imagePreview ? (
-              <img src={imagePreview} alt="" />
-            ) : (
-              <span className="upload-empty">
-                <ImagePlus size={22} />
-                <strong>Choose square image</strong>
-                <small>PNG / JPG / WebP, under 5 MB</small>
-              </span>
-            )}
-          </label>
+          <button className={`advanced-toggle ${advanced ? 'active' : ''}`} type="button" onClick={() => setAdvanced((value) => !value)}>
+            <SlidersHorizontal size={16} />
+            {advanced ? 'Hide optional links' : 'Add website and socials'}
+          </button>
 
-          <div className="form-row">
-            <label>
-              Website
-              <input value={form.website} onChange={(event) => updateField('website', event.target.value)} placeholder="https://" />
-            </label>
-            <label>
-              X / Twitter
-              <input value={form.x} onChange={(event) => updateField('x', event.target.value)} placeholder="https://x.com/" />
-            </label>
+          {advanced ? (
+            <div className="advanced-fields">
+              <label>
+                Website
+                <input value={form.website} onChange={(event) => updateField('website', event.target.value)} placeholder="https://" />
+              </label>
+              <label>
+                X / Twitter
+                <input value={form.x} onChange={(event) => updateField('x', event.target.value)} placeholder="https://x.com/" />
+              </label>
+              <label>
+                Telegram
+                <input value={form.telegram} onChange={(event) => updateField('telegram', event.target.value)} placeholder="https://t.me/" />
+              </label>
+            </div>
+          ) : null}
+
+          <div className="launch-step-row">
+            <span>2</span>
+            <strong>Confirm readiness</strong>
           </div>
-
-          <label>
-            Telegram
-            <input value={form.telegram} onChange={(event) => updateField('telegram', event.target.value)} placeholder="https://t.me/" />
-          </label>
-
-          <label className="checkbox-row">
+          <label className="checkbox-row soft-check">
             <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
-            I understand this interface does not guarantee token success, liquidity, moderation, or refunds.
+            I understand launches are public, user-signed, and market performance is not guaranteed.
           </label>
 
           <button className="button button-primary full-width" type="submit" disabled={!formReady || !acknowledged || isPreparingPacket}>
             <Rocket size={18} />
-            {isPreparingPacket ? 'Preparing packet' : 'Prepare launch packet'}
+            {isPreparingPacket ? 'Preparing' : launchPacket ? 'Update launch profile' : 'Prepare launch profile'}
           </button>
 
           {launchPacket ? (
             <div className="launch-packet">
               <div className="side-card-title">
                 <ClipboardCheck size={20} />
-                <strong>Launch packet ready</strong>
+                <strong>Profile ready</strong>
               </div>
-              <div className="packet-grid">
-                <span>Name <strong>{launchPacket.name}</strong></span>
-                <span>Ticker <strong>${launchPacket.symbol}</strong></span>
-                <span>Fee <strong>{launchPacket.feeTxHash ? 'Confirmed' : feeReady ? 'Pending' : 'Not configured'}</strong></span>
-                <span>Metadata <strong>{launchPacket.metadataStatus === 'pinned' ? 'Pinned' : 'Local'}</strong></span>
-              </div>
-              <p>
-                Your token profile, socials, media preview, and fee status are saved in this browser for the final
-                execution step.
-              </p>
+              <p>Your launch profile is saved in this browser and ready for wallet, fee, and execution checks.</p>
               <Link className="button button-muted full-width" to={`/studio/${launchPacket.id}`}>
-                Open in Studio
+                Open creator studio
               </Link>
             </div>
           ) : null}
         </form>
 
-        <aside className="launch-side">
-          <div className="side-card studio-status-card">
-            <div className="side-card-title">
-              <Sparkles size={20} />
-              <strong>Studio mode</strong>
+        <aside className="launch-preview-rail">
+          <div className="coin-preview-card">
+            <div className="coin-preview-media">
+              {imagePreview ? <img src={imagePreview} alt="" /> : <ImagePlus size={28} />}
             </div>
-            <p>Prepare metadata, socials, fee status, and wallet readiness from one native workspace.</p>
-            <div className="studio-pulse">
-              <span />
-              <strong>Launch workspace active</strong>
-            </div>
+            <span>Preview</span>
+            <h2>{form.name.trim() || 'Your coin'}</h2>
+            <strong>${form.symbol.trim() || 'TICKER'}</strong>
+            <p>{form.description.trim() || 'A short community story will appear here as you type.'}</p>
           </div>
 
           <div className="side-card">
             <div className="side-card-title">
               <ShieldCheck size={20} />
-              <strong>Pre-flight status</strong>
+              <strong>Pre-flight</strong>
             </div>
             <ul className="check-list">
-              <li className={formReady ? 'done' : ''}>Token details pass basic validation</li>
-              <li className={isConnected ? 'done' : ''}>{isConnected ? `Wallet connected: ${address?.slice(0, 6)}...` : 'Wallet not connected'}</li>
-              <li className={onBnb ? 'done' : ''}>{isConnected ? 'BNB Chain selected' : 'Connect wallet to check network'}</li>
-              <li className={feeReady ? 'done' : ''}>{feeReady ? 'ION fee config verified' : 'ION fee config pending'}</li>
-              <li className={feeSatisfied ? 'done' : ''}>{feeSatisfied ? 'Fee status ready' : 'ION fee not paid yet'}</li>
+              <li className={formReady ? 'done' : ''}>Name, ticker, and story are ready</li>
+              <li className={isConnected ? 'done' : ''}>{isConnected ? `Wallet ${address?.slice(0, 6)}... connected` : 'Wallet connection pending'}</li>
+              <li className={onBnb ? 'done' : ''}>{isConnected ? 'BNB Chain selected' : 'Network checked after wallet connect'}</li>
+              <li className={feeSatisfied ? 'done' : ''}>{feeSatisfied ? 'Platform fee ready' : 'Platform fee pending'}</li>
             </ul>
             {isConnected && !onBnb ? (
               <button className="button button-muted full-width" type="button" onClick={() => void switchToBnb()}>
@@ -361,21 +347,17 @@ export function LaunchPage() {
             ) : null}
           </div>
 
-          <div className="side-card">
+          <div className="side-card fee-card-simple">
             <div className="side-card-title">
               <WalletCards size={20} />
-              <strong>ION platform fee</strong>
+              <strong>ION fee</strong>
             </div>
-            <p>
-              Fee collection is designed as a normal wallet-confirmed ION transfer. Treasury and burn reporting stay
-              transparent and reviewable.
-            </p>
             <div className="fee-box">
-              <span>Configured fee</span>
+              <span>Fee</span>
               <strong>{feeConfig.platformFeeIon} ION</strong>
             </div>
             <div className="fee-box">
-              <span>Wallet balance</span>
+              <span>Balance</span>
               <strong>{isBalanceLoading ? 'Checking...' : formattedFeeBalance}</strong>
             </div>
             <button
@@ -384,34 +366,24 @@ export function LaunchPage() {
               disabled={!isConnected || !onBnb || !feeReady || !hasFeeBalance || isFeePending}
               onClick={() => void collectFee()}
             >
-              {isFeePending ? 'Confirm in wallet' : 'Pay ION fee'}
+              {isFeePending ? 'Confirm in wallet' : feeTxHash ? 'Fee paid' : 'Pay fee'}
             </button>
             {feeError ? <div className="fee-error">{feeError}</div> : null}
             {feeTxHash ? (
               <a className="tx-link" href={externalLinks.bscScanTx(feeTxHash)} target="_blank" rel="noreferrer">
                 <CheckCircle2 size={16} />
-                View fee transaction
+                View transaction
               </a>
             ) : null}
           </div>
-          <div className="external-card passive-card">
-            <Tag size={16} />
-            Route verification mode
-          </div>
-          <div className="side-card">
-            <div className="side-card-title">
-              <Rocket size={20} />
-              <strong>Execution readiness</strong>
-            </div>
-            <ul className="check-list">
-              <li className={launchPacket ? 'done' : ''}>Launch packet prepared</li>
-              <li className={feeSatisfied ? 'done' : ''}>Platform fee status ready</li>
-              <li className={launchExecutionEnabled ? 'done' : ''}>
-                {launchExecutionEnabled ? 'Launch execution enabled by config' : 'Verified launch route pending'}
-              </li>
-            </ul>
-            <button className="button button-primary full-width" type="button" disabled>
-              {launchExecutionEnabled ? 'Executor adapter pending' : 'Route verification pending'}
+
+          <div className="execution-card">
+            <span>Final step</span>
+            <strong>{launchExecutionEnabled ? 'Execution enabled' : 'Route verification pending'}</strong>
+            <p>The public launch button stays locked until the verified execution adapter is enabled.</p>
+            <button className="button button-muted full-width" type="button" disabled>
+              Launch route locked
+              <ArrowRight size={16} />
             </button>
           </div>
         </aside>

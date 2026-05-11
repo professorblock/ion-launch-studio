@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 
 const requiredFiles = [
   'api/bitquery.js',
@@ -46,9 +46,22 @@ if (missingRoutes.length) {
   throw new Error(`Missing required routes: ${missingRoutes.join(', ')}`);
 }
 
-const distSource = existsSync('dist') ? readFileSync('dist/index.html', 'utf8') : '';
-if (distSource.includes('BITQUERY_API_TOKEN') || distSource.includes('PINATA_JWT')) {
-  throw new Error('Server-only secret names leaked into dist/index.html');
+const secretNames = ['BITQUERY_API_TOKEN', 'PINATA_JWT', 'VITE_BITQUERY_API_TOKEN', 'VITE_PINATA_JWT'];
+const distFiles = existsSync('dist') ? listFiles('dist').filter((file) => /\.(html|js|css|json|txt|map)$/.test(file)) : [];
+for (const file of distFiles) {
+  const source = readFileSync(file, 'utf8');
+  const leaked = secretNames.find((secret) => source.includes(secret));
+  if (leaked) {
+    throw new Error(`Server-only secret name leaked into ${file}: ${leaked}`);
+  }
 }
 
 console.log('Smoke check passed');
+
+function listFiles(path) {
+  const entries = readdirSync(path).flatMap((entry) => {
+    const fullPath = `${path}/${entry}`;
+    return statSync(fullPath).isDirectory() ? listFiles(fullPath) : [fullPath];
+  });
+  return entries;
+}

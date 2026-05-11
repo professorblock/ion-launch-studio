@@ -6,11 +6,16 @@ import { ConnectWalletButton } from '../wallet/ConnectWalletButton';
 import { IonLogo } from '../brand/IonLogo';
 
 const navItems = [
-  { label: 'Markets', to: '/discover' },
+  { label: 'Discover', to: '/discover' },
   { label: 'Launch', to: '/launch' },
-  { label: 'Desk', to: '/desk' },
-  { label: 'Studio', to: '/studio' },
-  { label: 'Burns', to: '/burn' },
+  { label: 'Portfolio', to: '/desk' },
+];
+
+const secondaryItems = [
+  { label: 'Creator studio', to: '/studio' },
+  { label: 'Burn board', to: '/burn' },
+  { label: 'Docs', to: '/docs' },
+  { label: 'Status', to: '/status' },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -52,6 +57,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 {item.label}
               </NavLink>
             ))}
+            {secondaryItems.map((item) => (
+              <NavLink key={item.to} to={item.to} onClick={() => setMobileOpen(false)}>
+                {item.label}
+              </NavLink>
+            ))}
           </nav>
           <ConnectWalletButton />
         </div>
@@ -68,10 +78,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </p>
           </div>
           <div className="footer-group">
-            <strong>Resources</strong>
-            <Link to="/desk">My desk</Link>
+            <strong>Product</strong>
+            <Link to="/discover">Discover</Link>
+            <Link to="/launch">Launch</Link>
+            <Link to="/desk">Portfolio</Link>
             <Link to="/studio">Creator studio</Link>
-            <Link to="/docs">Docs</Link>
+          </div>
+          <div className="footer-group">
+            <strong>Resources</strong>
             <Link to="/info">How it works</Link>
             <Link to="/fee-policy">Fee policy</Link>
             <Link to="/burn">Burn board</Link>
