@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { AppErrorBoundary } from './components/system/AppErrorBoundary';
 import { BurnPage } from './pages/BurnPage';
@@ -9,6 +9,7 @@ import { FeePolicyPage } from './pages/FeePolicyPage';
 import { HomePage } from './pages/HomePage';
 import { InfoPage } from './pages/InfoPage';
 import { LaunchPage } from './pages/LaunchPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { ReadinessPage } from './pages/ReadinessPage';
 import { RiskPage } from './pages/RiskPage';
@@ -39,7 +40,7 @@ export function App() {
           <Route path="/fee-policy" element={<FeePolicyPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AppErrorBoundary>
     </AppLayout>

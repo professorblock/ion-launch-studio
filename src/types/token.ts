@@ -27,6 +27,7 @@ export interface RecentTrade {
   trader: `0x${string}`;
   amountToken: number;
   amountUsd: number;
+  priceUsd?: number;
   timestamp: string;
 }
 

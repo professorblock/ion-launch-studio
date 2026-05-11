@@ -373,6 +373,7 @@ function extractTrades(payload, tokenAddress) {
       trader: trader || '0x0000000000000000000000000000000000000000',
       amountToken: Number(tokenSide.Amount || 0),
       amountUsd: usdAmount(tokenSide),
+      priceUsd: Number(tokenSide.PriceInUSD || 0),
       timestamp: trade.Block?.Time || new Date().toISOString(),
     };
   }).filter(Boolean);

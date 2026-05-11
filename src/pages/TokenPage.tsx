@@ -12,6 +12,7 @@ import { TradePanel } from '../components/token/TradePanel';
 import { AnalyticsPanel } from '../components/token/AnalyticsPanel';
 import { TokenIntelPanel } from '../components/token/TokenIntelPanel';
 import { SourceBadge } from '../components/ui/SourceBadge';
+import { MarketChart } from '../components/token/MarketChart';
 
 export function TokenPage() {
   const { address = '' } = useParams();
@@ -52,15 +53,7 @@ export function TokenPage() {
         <div className="detail-main">
           <AnalyticsPanel token={token} />
           <TokenIntelPanel token={token} />
-          <div className="chart-placeholder">
-            <span>Market activity</span>
-            <strong>{formatUsd(token.marketCapUsd)}</strong>
-            <div className="chart-bars" aria-hidden="true">
-              {[42, 58, 35, 76, 62, 84, 69, 91, 73, 88, 96, 82].map((height, index) => (
-                <i key={index} style={{ height: `${height}%` }} />
-              ))}
-            </div>
-          </div>
+          <MarketChart token={token} trades={data?.trades ?? []} />
 
           <div className="panel">
             <div className="section-heading compact-heading">

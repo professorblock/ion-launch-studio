@@ -17,6 +17,7 @@ export default function handler(request, response) {
   const launchBlockers = [
     !checks.bitquery ? 'live market data' : undefined,
     !checks.ionFee ? 'ION fee configuration' : undefined,
+    !checks.feeVerifier ? 'ION fee verifier configuration' : undefined,
     !checks.burnBoard ? 'burn board configuration' : undefined,
     checks.launchExecution ? 'launch execution is enabled before final verification' : undefined,
     checks.tradeExecution ? 'trade execution is enabled before final verification' : undefined,
@@ -25,6 +26,7 @@ export default function handler(request, response) {
     bitquery: checks.bitquery,
     metadata: checks.metadata,
     ionFee: checks.ionFee,
+    feeVerifier: checks.feeVerifier,
     burnBoard: checks.burnBoard,
     launchProxy: checks.launchProxy,
   };
