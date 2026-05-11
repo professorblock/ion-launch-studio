@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 const platformStatusSchema = z.object({
   status: z.string(),
+  publicLaunchReady: z.boolean().catch(false),
+  launchBlockers: z.array(z.string()).catch([]),
   deployment: z.object({
     environment: z.string(),
     region: z.string().optional(),
@@ -34,6 +36,8 @@ export async function fetchPlatformStatus(): Promise<PlatformStatus> {
   } catch {
     return {
       status: 'local',
+      publicLaunchReady: false,
+      launchBlockers: ['platform status unavailable'],
       deployment: {
         environment: 'local',
       },

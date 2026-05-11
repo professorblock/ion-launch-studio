@@ -11,7 +11,8 @@ This project is designed to run with minimal infrastructure: a static Vite front
 5. Verify `/api/metadata` returns `status: "pinned"` only if app-side metadata and media pinning is enabled.
 6. Run `npm run validate:env -- --strict` with production environment loaded before public launch.
 7. Run `npm run readiness` before pushing a release candidate.
-8. Check `/status` and `/readiness` after deployment and keep launch/trade execution disabled until route verification is complete.
+8. Run `npm run ship:check` before every staging review.
+9. Check `/status` and `/readiness` after deployment and keep launch/trade execution disabled until route verification is complete.
 
 ## Required Environment
 
@@ -78,3 +79,5 @@ The Desk is local-first. Watched tokens, launch packets, and trade drafts are sa
 ## Go-Live Gate
 
 Do not enable final launch execution until all checks in `VERIFICATION.md` are complete.
+`/api/status` exposes `publicLaunchReady` and `launchBlockers` so deployment success is not confused with go-live
+readiness.

@@ -13,12 +13,29 @@ export default function handler(request, response) {
     launchExecution: process.env.VITE_ENABLE_LAUNCH_EXECUTION === 'true',
     tradeExecution: process.env.VITE_ENABLE_TRADE_EXECUTION === 'true',
   };
-  const missing = Object.entries(checks)
+  const launchBlockers = [
+    !checks.bitquery ? 'live market data' : undefined,
+    !checks.ionFee ? 'ION fee configuration' : undefined,
+    !checks.burnBoard ? 'burn board configuration' : undefined,
+    checks.launchExecution ? 'launch execution is enabled before final verification' : undefined,
+    checks.tradeExecution ? 'trade execution is enabled before final verification' : undefined,
+  ].filter(Boolean);
+  const requiredChecks = {
+    bitquery: checks.bitquery,
+    metadata: checks.metadata,
+    ionFee: checks.ionFee,
+    burnBoard: checks.burnBoard,
+    launchProxy: checks.launchProxy,
+  };
+  const missing = Object.entries(requiredChecks)
     .filter(([, ready]) => !ready)
     .map(([key]) => key);
 
+  response.setHeader('cache-control', 's-maxage=20, stale-while-revalidate=60');
   response.status(200).json({
     status: 'ok',
+    publicLaunchReady: launchBlockers.length === 0,
+    launchBlockers,
     deployment: {
       environment: process.env.VERCEL_ENV || 'local',
       region: process.env.VERCEL_REGION || undefined,

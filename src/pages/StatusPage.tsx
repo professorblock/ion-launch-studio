@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, CircleDashed, ServerCog } from 'lucide-react';
+import { CheckCircle2, CircleDashed, LockKeyhole, ServerCog } from 'lucide-react';
 import { fetchPlatformStatus } from '../lib/platformStatus';
 
 const labels = {
@@ -13,7 +13,15 @@ const labels = {
 
 export function StatusPage() {
   const { data, isLoading } = useQuery({ queryKey: ['platform-status'], queryFn: fetchPlatformStatus });
-  const statusLabel = isLoading ? 'Checking services' : data?.status === 'ok' ? 'Platform reachable' : data?.status === 'local' ? 'Local preview mode' : 'Status unavailable';
+  const statusLabel = isLoading
+    ? 'Checking services'
+    : data?.publicLaunchReady
+      ? 'Public launch ready'
+      : data?.status === 'ok'
+        ? 'Launch gated'
+        : data?.status === 'local'
+          ? 'Local preview mode'
+          : 'Status unavailable';
   const deployment = data?.deployment;
 
   return (
@@ -29,7 +37,7 @@ export function StatusPage() {
         </div>
         <div className="side-card">
           <div className="side-card-title">
-            <ServerCog size={20} />
+            {data?.publicLaunchReady ? <ServerCog size={20} /> : <LockKeyhole size={20} />}
             <strong>{statusLabel}</strong>
           </div>
           <p>Use this before staging and production deploys to confirm the expected serverless services are configured.</p>
@@ -37,6 +45,12 @@ export function StatusPage() {
             <div className="status-missing">
               <span>Pending</span>
               <strong>{data.missing.join(', ')}</strong>
+            </div>
+          ) : null}
+          {data?.launchBlockers.length ? (
+            <div className="status-missing">
+              <span>Go-live blockers</span>
+              <strong>{data.launchBlockers.join(', ')}</strong>
             </div>
           ) : null}
           {deployment ? (

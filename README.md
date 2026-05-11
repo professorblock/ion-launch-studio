@@ -20,6 +20,7 @@ npm run lint
 npm run build
 npm run smoke
 npm run validate:env
+npm run ship:check
 ```
 
 Copy `.env.example` to `.env.local` and fill only the values that are already verified.
@@ -84,3 +85,6 @@ client-prefixed secrets, missing public treasury/token addresses, and unconfigur
 
 Use `npm run readiness` for a broader preflight that checks required docs, routes, deployment files, and non-strict env
 readiness.
+
+Use `npm run ship:check` before staging reviews. It runs lint, build, smoke, readiness, and non-strict environment
+validation in one command.
