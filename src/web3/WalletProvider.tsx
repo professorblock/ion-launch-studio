@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Address, Hex } from 'viem';
-import { decodeFunctionResult, encodeFunctionData, parseUnits } from 'viem';
+import { decodeFunctionResult, encodeFunctionData, parseUnits, toHex } from 'viem';
 import { erc20Abi } from './erc20';
+import { fourMemeHelperAbi, fourMemeTokenManagerAbi } from './fourMeme';
 import { WalletContext, type WalletContextValue } from './WalletContext';
 
 const BNB_CHAIN_ID = 56;
 const BNB_CHAIN_HEX = '0x38';
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 type EthereumRequest = {
   method: string;
@@ -177,6 +179,152 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     return { status: 'pending' };
   }, []);
 
+  const signMessage = useCallback<WalletContextValue['signMessage']>(async (message) => {
+    const ethereum = getEthereum();
+    if (!ethereum || !address) throw new Error('Wallet not connected');
+    return (await ethereum.request({
+      method: 'personal_sign',
+      params: [toHex(message), address],
+    })) as `0x${string}`;
+  }, [address]);
+
+  const createFourMemeToken = useCallback<WalletContextValue['createFourMemeToken']>(async ({ tokenManager, createArg, signature }) => {
+    const ethereum = getEthereum();
+    if (!ethereum || !address) throw new Error('Wallet not connected');
+    if (chainId !== BNB_CHAIN_ID) throw new Error('BNB Chain is required');
+
+    const launchFeeData = encodeFunctionData({
+      abi: fourMemeTokenManagerAbi,
+      functionName: '_launchFee',
+    });
+    const launchFeeResult = (await ethereum.request({
+      method: 'eth_call',
+      params: [{ to: tokenManager, data: launchFeeData }, 'latest'],
+    })) as `0x${string}`;
+    const launchFee = decodeFunctionResult({
+      abi: fourMemeTokenManagerAbi,
+      functionName: '_launchFee',
+      data: launchFeeResult,
+    });
+    const data = encodeFunctionData({
+      abi: fourMemeTokenManagerAbi,
+      functionName: 'createToken',
+      args: [createArg, signature],
+    });
+    return (await ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{ from: address, to: tokenManager, data, value: toHex(launchFee) }],
+    })) as `0x${string}`;
+  }, [address, chainId]);
+
+  const quoteFourMemeBuy = useCallback<WalletContextValue['quoteFourMemeBuy']>(async ({ helper, token, fundsWei }) => {
+    const ethereum = getEthereum();
+    if (!ethereum) throw new Error('Wallet not available');
+    const data = encodeFunctionData({
+      abi: fourMemeHelperAbi,
+      functionName: 'tryBuy',
+      args: [token, 0n, fundsWei],
+    });
+    const result = (await ethereum.request({
+      method: 'eth_call',
+      params: [{ to: helper, data }, 'latest'],
+    })) as `0x${string}`;
+    const decoded = decodeFunctionResult({ abi: fourMemeHelperAbi, functionName: 'tryBuy', data: result });
+    return {
+      tokenManager: decoded[0],
+      quote: decoded[1],
+      estimatedAmount: decoded[2],
+      estimatedCost: decoded[3],
+      estimatedFee: decoded[4],
+      amountMsgValue: decoded[5],
+      amountApproval: decoded[6],
+      amountFunds: decoded[7],
+    };
+  }, []);
+
+  const quoteFourMemeSell = useCallback<WalletContextValue['quoteFourMemeSell']>(async ({ helper, token, amountWei }) => {
+    const ethereum = getEthereum();
+    if (!ethereum) throw new Error('Wallet not available');
+    const data = encodeFunctionData({
+      abi: fourMemeHelperAbi,
+      functionName: 'trySell',
+      args: [token, amountWei],
+    });
+    const result = (await ethereum.request({
+      method: 'eth_call',
+      params: [{ to: helper, data }, 'latest'],
+    })) as `0x${string}`;
+    const decoded = decodeFunctionResult({ abi: fourMemeHelperAbi, functionName: 'trySell', data: result });
+    return {
+      tokenManager: decoded[0],
+      quote: decoded[1],
+      funds: decoded[2],
+      fee: decoded[3],
+    };
+  }, []);
+
+  const executeFourMemeBuy = useCallback<WalletContextValue['executeFourMemeBuy']>(async ({ token, quote, slippageBps }) => {
+    const ethereum = getEthereum();
+    if (!ethereum || !address) throw new Error('Wallet not connected');
+    if (chainId !== BNB_CHAIN_ID) throw new Error('BNB Chain is required');
+    if (quote.quote.toLowerCase() !== ZERO_ADDRESS) throw new Error('Only BNB quote trades are enabled.');
+
+    const minAmount = applySlippageFloor(quote.estimatedAmount, slippageBps);
+    const data = encodeFunctionData({
+      abi: fourMemeTokenManagerAbi,
+      functionName: 'buyTokenAMAP',
+      args: [0n, token, address, quote.amountFunds, minAmount],
+    });
+    return (await ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{ from: address, to: quote.tokenManager, data, value: toHex(quote.amountMsgValue) }],
+    })) as `0x${string}`;
+  }, [address, chainId]);
+
+  const executeFourMemeSell = useCallback<WalletContextValue['executeFourMemeSell']>(async ({ token, quote, amountWei, slippageBps }) => {
+    const ethereum = getEthereum();
+    if (!ethereum || !address) throw new Error('Wallet not connected');
+    if (chainId !== BNB_CHAIN_ID) throw new Error('BNB Chain is required');
+    if (quote.quote.toLowerCase() !== ZERO_ADDRESS) throw new Error('Only BNB quote trades are enabled.');
+
+    const allowanceData = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'allowance',
+      args: [address, quote.tokenManager],
+    });
+    const allowanceResult = (await ethereum.request({
+      method: 'eth_call',
+      params: [{ to: token, data: allowanceData }, 'latest'],
+    })) as `0x${string}`;
+    const allowance = decodeFunctionResult({ abi: erc20Abi, functionName: 'allowance', data: allowanceResult });
+    let approveHash: `0x${string}` | undefined;
+    if (allowance < amountWei) {
+      const approveData = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [quote.tokenManager, amountWei],
+      });
+      approveHash = (await ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{ from: address, to: token, data: approveData, value: '0x0' }],
+      })) as `0x${string}`;
+      const approveReceipt = await waitForTransactionReceipt(approveHash);
+      if (approveReceipt.status !== 'success') throw new Error('Token approval was not confirmed.');
+    }
+
+    const minFunds = applySlippageFloor(quote.funds > quote.fee ? quote.funds - quote.fee : quote.funds, slippageBps);
+    const data = encodeFunctionData({
+      abi: fourMemeTokenManagerAbi,
+      functionName: 'sellToken',
+      args: [0n, token, amountWei, minFunds],
+    });
+    const sellHash = (await ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{ from: address, to: quote.tokenManager, data, value: '0x0' }],
+    })) as `0x${string}`;
+    return { approveHash, sellHash };
+  }, [address, chainId, waitForTransactionReceipt]);
+
   useEffect(() => {
     const ethereum = getEthereum();
     if (!ethereum) return;
@@ -210,9 +358,36 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       getIonBalance,
       sendIonFee,
       waitForTransactionReceipt,
+      signMessage,
+      createFourMemeToken,
+      quoteFourMemeBuy,
+      quoteFourMemeSell,
+      executeFourMemeBuy,
+      executeFourMemeSell,
     }),
-    [address, chainId, connect, disconnect, getIonBalance, isConnecting, sendIonFee, switchToBnb, waitForTransactionReceipt],
+    [
+      address,
+      chainId,
+      connect,
+      createFourMemeToken,
+      disconnect,
+      executeFourMemeBuy,
+      executeFourMemeSell,
+      getIonBalance,
+      isConnecting,
+      quoteFourMemeBuy,
+      quoteFourMemeSell,
+      sendIonFee,
+      signMessage,
+      switchToBnb,
+      waitForTransactionReceipt,
+    ],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
+}
+
+function applySlippageFloor(value: bigint, slippageBps: number) {
+  const bps = BigInt(Math.min(Math.max(Math.round(slippageBps), 0), 5000));
+  return (value * (10_000n - bps)) / 10_000n;
 }

@@ -3,6 +3,7 @@ import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 const requiredFiles = [
   'api/bitquery.js',
   'api/metadata.js',
+  'api/fourmeme.js',
   'api/status.js',
   'api/verify-fee.js',
   'src/pages/HomePage.tsx',

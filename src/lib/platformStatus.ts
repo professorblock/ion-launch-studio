@@ -19,6 +19,7 @@ const platformStatusSchema = z.object({
     burnBoard: z.boolean(),
     launchExecution: z.boolean().catch(false),
     tradeExecution: z.boolean().catch(false),
+    executionVerified: z.boolean().catch(false),
   }),
   network: z.object({
     bnbChainId: z.number(),
@@ -50,6 +51,7 @@ export async function fetchPlatformStatus(): Promise<PlatformStatus> {
         burnBoard: false,
         launchExecution: false,
         tradeExecution: false,
+        executionVerified: false,
       },
       network: {
         bnbChainId: 56,

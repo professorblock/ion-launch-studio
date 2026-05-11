@@ -8,8 +8,8 @@ ION Launch is a branded discovery and launch interface for community tokens on B
 - No private keys or mnemonics in the app.
 - No backend transaction signing.
 - User wallets sign all on-chain actions.
-- Platform fee flow is planned as a standard user-signed ERC-20 transfer.
-- Trading and launch contract calls remain disabled until exact integrations are verified.
+- Platform fees use a standard user-signed ION ERC-20 transfer.
+- Launch and trade execution routes are feature-gated until staging mainnet tests are complete.
 
 ## Local Development
 
@@ -30,7 +30,7 @@ Copy `.env.example` to `.env.local` and fill only the values that are already ve
 The app is Vercel-ready:
 
 - Vite builds the static frontend.
-- `/api/bitquery` and `/api/metadata` run as serverless functions.
+- `/api/bitquery`, `/api/metadata`, and `/api/fourmeme` run as serverless functions.
 - `vercel.json` keeps client-side routes working on refresh and adds basic security headers.
 - GitHub Actions runs lint, build, and moderate-severity dependency audit.
 
@@ -73,10 +73,17 @@ useful without user accounts, custodial storage, or paid database infrastructure
 Desk also supports full workspace export/import so a creator can back up local launch packets, watchlist entries, and
 review-only order drafts.
 
-## Trade Reviews
+## Launch Execution
 
-Token pages support review-only order drafts with slippage settings and estimated output. Drafts are saved locally, but
-no swap transaction is sent until final route verification is complete.
+The launch flow prepares token creation through the verified external launch API, then asks the connected wallet to
+submit the official BNB Chain token manager transaction. The serverless proxy never signs transactions and never stores
+wallet keys.
+
+## Trade Desk
+
+Token pages support local order drafts while execution is disabled. When `VITE_ENABLE_TRADE_EXECUTION=true`, the app
+uses the verified helper quote route for BNB-paired tokens and asks the wallet to submit buy or sell transactions with a
+slippage floor. ERC-20 quote routes and special token modes stay disabled until separately tested.
 
 ## Production Gate
 

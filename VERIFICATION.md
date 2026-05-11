@@ -5,9 +5,14 @@ This checklist must be completed before enabling public transactional flows.
 ## BNB Chain / Four Meme
 
 - [x] Confirm Four Meme exchange proxy on BNB Chain: `0x5c952063c7fc8610ffdb798152d69f0b9550762b`.
-- [ ] Confirm official Four Meme token creation integration path.
-- [ ] Confirm whether direct launch transaction calldata is officially documented.
-- [ ] Confirm safe external handoff URL format if direct launch is deferred.
+- [x] Confirm official Four Meme token creation integration path.
+- [x] Confirm official BNB Chain helper address: `0xF251F83e40a78868FcfA3FA4599Dad6494E46034`.
+- [x] Confirm direct launch route: API-generated `createArg` and `signature`, then wallet-signed `createToken(bytes,bytes)`.
+- [x] Confirm standard BNB quote route: helper quote, then wallet-signed buy/sell token manager transaction.
+- [ ] Test launch execution on staging with a small mainnet token profile.
+- [ ] Test BNB buy execution on staging with a small amount.
+- [ ] Test BNB sell execution on staging with a small amount.
+- [ ] Confirm ERC-20 quote, X Mode, and tax-token special flows remain disabled in the UI.
 
 ## ION on BNB Chain
 
@@ -29,10 +34,10 @@ This checklist must be completed before enabling public transactional flows.
 
 ## Metadata
 
-- [ ] Confirm whether launch metadata should be pinned by our app or handled by the verified launch route.
+- [x] Confirm launch image upload is handled through the verified launch route.
 - [ ] If app-side pinning is used, configure `PINATA_JWT` server-side only.
 - [ ] Confirm image pinning with PNG, JPG, and WebP files under 1.5 MB.
-- [ ] Confirm pinned metadata format against the final launch route requirements.
+- [x] Confirm launch profile payload format against the final launch route requirements.
 - [ ] Confirm frontend bundle does not expose `PINATA_JWT`.
 
 ## Burn Board
@@ -54,5 +59,6 @@ This checklist must be completed before enabling public transactional flows.
 - [ ] Test `/api/verify-fee` with a valid fee transaction, a reverted transaction, a pending hash, and a confirmed
       non-fee transaction.
 - [ ] Review all risk and fee copy.
-- [ ] Keep `VITE_ENABLE_LAUNCH_EXECUTION=false` until route calldata is verified.
-- [ ] Keep `VITE_ENABLE_TRADE_EXECUTION=false` until trade calldata and slippage behavior are verified.
+- [ ] Keep `VITE_ENABLE_LAUNCH_EXECUTION=false` in Production until staging launch execution is verified.
+- [ ] Keep `VITE_ENABLE_TRADE_EXECUTION=false` in Production until staging buy/sell execution is verified.
+- [ ] Set `VITE_EXECUTION_VERIFIED=true` only after launch, buy, and sell transaction hashes are reviewed.

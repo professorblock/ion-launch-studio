@@ -1,25 +1,43 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownUp, CheckCircle2, ClipboardCheck, ShieldCheck, WalletCards } from 'lucide-react';
-import { featureFlags } from '../../config/app';
+import { formatUnits, parseUnits, type Hex } from 'viem';
+import { chainConfig, externalLinks, featureFlags } from '../../config/app';
 import { saveTradeDraft } from '../../lib/tradeDrafts';
 import { useWallet } from '../../web3/WalletContext';
 import type { LaunchToken } from '../../types/token';
 import type { TradeDraft } from '../../types/order';
+import type { FourMemeBuyQuote, FourMemeSellQuote } from '../../web3/WalletContext';
 
 export function TradePanel({ token }: { token: LaunchToken }) {
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
   const [amount, setAmount] = useState('');
   const [slippageBps, setSlippageBps] = useState(500);
   const [draft, setDraft] = useState<TradeDraft>();
-  const { isConnected, chainId, switchToBnb } = useWallet();
+  const [quote, setQuote] = useState<FourMemeBuyQuote | FourMemeSellQuote>();
+  const [txHash, setTxHash] = useState<Hex>();
+  const [approveHash, setApproveHash] = useState<Hex>();
+  const [tradeError, setTradeError] = useState<string>();
+  const [isExecuting, setIsExecuting] = useState(false);
+  const { isConnected, chainId, switchToBnb, quoteFourMemeBuy, quoteFourMemeSell, executeFourMemeBuy, executeFourMemeSell } = useWallet();
   const readyForReview = isConnected && chainId === 56 && Number(amount) > 0;
   const tradeExecutionEnabled = featureFlags.tradeExecution;
+  const parsedAmount = useMemo(() => {
+    try {
+      return Number(amount) > 0 ? parseUnits(amount, side === 'buy' ? 18 : 18) : 0n;
+    } catch {
+      return 0n;
+    }
+  }, [amount, side]);
 
   const estimatedOutput = useMemo(() => {
+    if (quote) {
+      if (side === 'buy' && 'estimatedAmount' in quote) return `${formatUnits(quote.estimatedAmount, 18)} ${token.symbol}`;
+      if (side === 'sell' && 'funds' in quote) return `${formatUnits(quote.funds > quote.fee ? quote.funds - quote.fee : quote.funds, 18)} BNB`;
+    }
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) return '0';
     return side === 'buy' ? `${Math.floor(value * 122_000).toLocaleString()} ${token.symbol}` : `${(value / 118_000).toFixed(5)} BNB`;
-  }, [amount, side, token.symbol]);
+  }, [amount, quote, side, token.symbol]);
 
   function reviewOrder() {
     if (!readyForReview) return;
@@ -37,6 +55,38 @@ export function TradePanel({ token }: { token: LaunchToken }) {
     };
     setDraft(nextDraft);
     saveTradeDraft(nextDraft);
+  }
+
+  async function executeTrade() {
+    if (!readyForReview || parsedAmount <= 0n) return;
+    setIsExecuting(true);
+    setTradeError(undefined);
+    try {
+      if (side === 'buy') {
+        const nextQuote = await quoteFourMemeBuy({
+          helper: chainConfig.fourMemeHelper,
+          token: token.address,
+          fundsWei: parsedAmount,
+        });
+        setQuote(nextQuote);
+        const hash = await executeFourMemeBuy({ token: token.address, quote: nextQuote, slippageBps });
+        setTxHash(hash);
+      } else {
+        const nextQuote = await quoteFourMemeSell({
+          helper: chainConfig.fourMemeHelper,
+          token: token.address,
+          amountWei: parsedAmount,
+        });
+        setQuote(nextQuote);
+        const result = await executeFourMemeSell({ token: token.address, quote: nextQuote, amountWei: parsedAmount, slippageBps });
+        setApproveHash(result.approveHash);
+        setTxHash(result.sellHash);
+      }
+    } catch (error) {
+      setTradeError(error instanceof Error ? error.message : 'Trade was not completed.');
+    } finally {
+      setIsExecuting(false);
+    }
   }
 
   return (
@@ -94,9 +144,40 @@ export function TradePanel({ token }: { token: LaunchToken }) {
         </button>
       ) : null}
 
-      <button className="button button-primary full-width" type="button" disabled={!readyForReview} onClick={reviewOrder}>
-        Review {side} order
+      <button
+        className="button button-primary full-width"
+        type="button"
+        disabled={!readyForReview || isExecuting}
+        onClick={tradeExecutionEnabled ? () => void executeTrade() : reviewOrder}
+      >
+        {isExecuting ? 'Confirm in wallet' : tradeExecutionEnabled ? `${side === 'buy' ? 'Buy' : 'Sell'} ${token.symbol}` : `Review ${side} order`}
       </button>
+      {tradeError ? <div className="fee-error">{tradeError}</div> : null}
+      {quote ? (
+        <div className="order-draft">
+          <div className="side-card-title">
+            <ClipboardCheck size={18} />
+            <strong>Route quote</strong>
+          </div>
+          <div className="stat-list">
+            <span>Output <strong>{estimatedOutput}</strong></span>
+            {'estimatedFee' in quote ? <span>Fee <strong>{formatUnits(quote.estimatedFee, 18)} BNB</strong></span> : null}
+            {'fee' in quote ? <span>Fee <strong>{formatUnits(quote.fee, 18)} BNB</strong></span> : null}
+          </div>
+        </div>
+      ) : null}
+      {approveHash ? (
+        <a className="tx-link" href={externalLinks.bscScanTx(approveHash)} target="_blank" rel="noreferrer">
+          <CheckCircle2 size={16} />
+          Approval transaction
+        </a>
+      ) : null}
+      {txHash ? (
+        <a className="tx-link" href={externalLinks.bscScanTx(txHash)} target="_blank" rel="noreferrer">
+          <CheckCircle2 size={16} />
+          Trade transaction
+        </a>
+      ) : null}
 
       {draft ? (
         <div className="order-draft">

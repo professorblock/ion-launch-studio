@@ -13,14 +13,15 @@ export default function handler(request, response) {
     launchProxy: Boolean(process.env.FOUR_MEME_PROXY || process.env.VITE_FOUR_MEME_PROXY),
     launchExecution: process.env.VITE_ENABLE_LAUNCH_EXECUTION === 'true',
     tradeExecution: process.env.VITE_ENABLE_TRADE_EXECUTION === 'true',
+    executionVerified: process.env.VITE_EXECUTION_VERIFIED === 'true',
   };
   const launchBlockers = [
     !checks.bitquery ? 'live market data' : undefined,
     !checks.ionFee ? 'ION fee configuration' : undefined,
     !checks.feeVerifier ? 'ION fee verifier configuration' : undefined,
     !checks.burnBoard ? 'burn board configuration' : undefined,
-    checks.launchExecution ? 'launch execution is enabled before final verification' : undefined,
-    checks.tradeExecution ? 'trade execution is enabled before final verification' : undefined,
+    checks.launchExecution && !checks.executionVerified ? 'launch execution is enabled before final verification' : undefined,
+    checks.tradeExecution && !checks.executionVerified ? 'trade execution is enabled before final verification' : undefined,
   ].filter(Boolean);
   const requiredChecks = {
     bitquery: checks.bitquery,
@@ -54,6 +55,7 @@ export default function handler(request, response) {
       burnBoard: checks.burnBoard,
       launchExecution: checks.launchExecution,
       tradeExecution: checks.tradeExecution,
+      executionVerified: checks.executionVerified,
     },
     network: {
       bnbChainId: Number(process.env.VITE_BNB_CHAIN_ID || 56),

@@ -2,10 +2,11 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, ClipboardCheck, ImagePlus, Rocket, ShieldCheck, SlidersHorizontal, WalletCards } from 'lucide-react';
 import { formatUnits, parseUnits, type Hex } from 'viem';
-import { externalLinks, feeConfig, featureFlags } from '../config/app';
+import { chainConfig, externalLinks, feeConfig, featureFlags } from '../config/app';
 import { getLaunchPacket, saveLaunchPacket } from '../lib/launchPackets';
 import { pinLaunchMetadata } from '../lib/metadata';
 import { verifyFeeTransaction } from '../lib/feeVerification';
+import { loginFourMeme, prepareFourMemeCreateToken, requestFourMemeNonce } from '../lib/fourMemeLaunch';
 import type { LaunchPacket } from '../types/launch';
 import { useWallet } from '../web3/WalletContext';
 
@@ -50,6 +51,10 @@ export function LaunchPage() {
   const [feeSubmittedAt, setFeeSubmittedAt] = useState<string>();
   const [feeConfirmedAt, setFeeConfirmedAt] = useState<string>();
   const [feeBlockNumber, setFeeBlockNumber] = useState<string>();
+  const [launchTxHash, setLaunchTxHash] = useState<Hex>();
+  const [launchStatus, setLaunchStatus] = useState<LaunchPacket['launchStatus']>();
+  const [launchError, setLaunchError] = useState<string>();
+  const [isLaunching, setIsLaunching] = useState(false);
   const [imageError, setImageError] = useState<string>();
   const [feeError, setFeeError] = useState<string>();
   const [feeBalance, setFeeBalance] = useState<bigint>();
@@ -58,7 +63,7 @@ export function LaunchPage() {
   const [isPreparingPacket, setIsPreparingPacket] = useState(false);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
   const [isFeePending, setIsFeePending] = useState(false);
-  const { address, isConnected, chainId, switchToBnb, getIonBalance, sendIonFee, waitForTransactionReceipt } = useWallet();
+  const { address, isConnected, chainId, switchToBnb, getIonBalance, sendIonFee, waitForTransactionReceipt, signMessage, createFourMemeToken } = useWallet();
 
   const formReady = useMemo(() => {
     return form.name.trim().length >= 2 && /^[A-Z0-9]{2,12}$/.test(form.symbol.trim()) && form.description.trim().length >= 20;
@@ -107,6 +112,8 @@ export function LaunchPage() {
     setFeeSubmittedAt(packet.feeSubmittedAt);
     setFeeConfirmedAt(packet.feeConfirmedAt);
     setFeeBlockNumber(packet.feeBlockNumber);
+    setLaunchTxHash(packet.launchTxHash);
+    setLaunchStatus(packet.launchStatus);
     setAcknowledged(true);
     setAdvanced(Boolean(packet.website || packet.x || packet.telegram));
   }, [packetId]);
@@ -209,6 +216,8 @@ export function LaunchPage() {
       metadataUri: metadata.uri,
       metadataGatewayUrl: metadata.gatewayUrl,
       metadataStatus: metadata.status === 'pinned' ? 'pinned' : metadata.status === 'unconfigured' ? 'unconfigured' : 'local',
+      launchTxHash,
+      launchStatus,
     };
 
     setLaunchPacket(nextPacket);
@@ -366,6 +375,60 @@ export function LaunchPage() {
       const nextPacket = { ...launchPacket, ...record };
       setLaunchPacket(nextPacket);
       saveLaunchPacket(nextPacket);
+    }
+  }
+
+  async function executeLaunch() {
+    if (!launchPacket || !address || !feeSatisfied || !imagePreview?.startsWith('data:image/')) return;
+    setIsLaunching(true);
+    setLaunchError(undefined);
+    try {
+      const nonce = await requestFourMemeNonce(address);
+      const signature = await signMessage(`You are sign in Meme ${nonce}`);
+      const accessToken = await loginFourMeme(address, signature);
+      const prepared = await prepareFourMemeCreateToken(accessToken, {
+        name: launchPacket.name,
+        symbol: launchPacket.symbol,
+        description: launchPacket.description,
+        website: launchPacket.website,
+        x: launchPacket.x,
+        telegram: launchPacket.telegram,
+        imageDataUrl: imagePreview,
+      });
+      const hash = await createFourMemeToken({
+        tokenManager: chainConfig.fourMemeProxy,
+        createArg: prepared.createArg,
+        signature: prepared.signature,
+      });
+      const submittedAt = new Date().toISOString();
+      const submittedPacket: LaunchPacket = {
+        ...launchPacket,
+        fourMemeImageUrl: prepared.imageUrl,
+        launchTxHash: hash,
+        launchSubmittedAt: submittedAt,
+        launchStatus: 'submitted',
+      };
+      setLaunchPacket(submittedPacket);
+      setLaunchTxHash(hash);
+      setLaunchStatus('submitted');
+      saveLaunchPacket(submittedPacket);
+
+      const receipt = await waitForTransactionReceipt(hash, { timeoutMs: 180_000 });
+      const confirmedPacket: LaunchPacket = {
+        ...submittedPacket,
+        launchStatus: receipt.status === 'success' ? 'confirmed' : receipt.status === 'reverted' ? 'failed' : 'submitted',
+        launchConfirmedAt: receipt.status === 'success' ? new Date().toISOString() : undefined,
+        launchBlockNumber: receipt.blockNumber?.toString(),
+      };
+      setLaunchPacket(confirmedPacket);
+      setLaunchStatus(confirmedPacket.launchStatus);
+      saveLaunchPacket(confirmedPacket);
+      if (receipt.status === 'reverted') setLaunchError('The token creation transaction reverted.');
+      if (receipt.status === 'pending') setLaunchError('Token creation was submitted but is still pending.');
+    } catch (error) {
+      setLaunchError(error instanceof Error ? error.message : 'Token creation was not completed.');
+    } finally {
+      setIsLaunching(false);
     }
   }
 
@@ -556,12 +619,28 @@ export function LaunchPage() {
 
           <div className="execution-card">
             <span>Final step</span>
-            <strong>{launchExecutionEnabled ? 'Execution enabled' : 'Route verification pending'}</strong>
-            <p>The public launch button stays locked until the verified execution adapter is enabled.</p>
-            <button className="button button-muted full-width" type="button" disabled>
-              Launch route locked
+            <strong>{launchStatus === 'confirmed' ? 'Launch confirmed' : launchExecutionEnabled ? 'Create on BNB Chain' : 'Route verification pending'}</strong>
+            <p>
+              {launchExecutionEnabled
+                ? 'Uses the official token creation signature flow and asks your wallet to submit the createToken transaction.'
+                : 'The public launch button stays locked until the verified execution adapter is enabled.'}
+            </p>
+            <button
+              className={`button ${launchExecutionEnabled ? 'button-primary' : 'button-muted'} full-width`}
+              type="button"
+              disabled={!launchExecutionEnabled || !feeSatisfied || !launchPacket || !imagePreview?.startsWith('data:image/') || isLaunching}
+              onClick={() => void executeLaunch()}
+            >
+              {isLaunching ? 'Confirming launch' : launchTxHash ? 'Launch submitted' : launchExecutionEnabled ? 'Create token' : 'Launch route locked'}
               <ArrowRight size={16} />
             </button>
+            {launchError ? <div className="fee-error">{launchError}</div> : null}
+            {launchTxHash ? (
+              <a className="tx-link" href={externalLinks.bscScanTx(launchTxHash)} target="_blank" rel="noreferrer">
+                <CheckCircle2 size={16} />
+                View launch transaction
+              </a>
+            ) : null}
           </div>
         </aside>
       </div>

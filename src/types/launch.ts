@@ -25,4 +25,10 @@ export interface LaunchPacket {
   metadataUri?: string;
   metadataGatewayUrl?: string;
   metadataStatus: 'local' | 'pinned' | 'unconfigured';
+  fourMemeImageUrl?: string;
+  launchTxHash?: Hex;
+  launchSubmittedAt?: string;
+  launchConfirmedAt?: string;
+  launchBlockNumber?: string;
+  launchStatus?: 'prepared' | 'submitted' | 'confirmed' | 'failed';
 }

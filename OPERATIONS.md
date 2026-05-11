@@ -13,12 +13,15 @@ This project is designed to run with minimal infrastructure: a static Vite front
 7. Run `npm run readiness` before pushing a release candidate.
 8. Run `npm run ship:check` before every staging review.
 9. Check `/status` and `/readiness` after deployment and keep launch/trade execution disabled until route verification is complete.
+10. Enable transactional flags in Preview first, perform small mainnet tests, then enable the same flags for Production only after the checklist in `VERIFICATION.md` is complete.
 
 ## Required Environment
 
 - `VITE_APP_NAME`
 - `VITE_BNB_CHAIN_ID`
 - `VITE_FOUR_MEME_PROXY`
+- `VITE_FOUR_MEME_HELPER`
+- `VITE_FOUR_MEME_PROXY_PATH`
 - `VITE_ION_TOKEN_BSC_ADDRESS`
 - `VITE_ION_TOKEN_DECIMALS`
 - `VITE_TREASURY_ADDRESS`
@@ -33,6 +36,9 @@ This project is designed to run with minimal infrastructure: a static Vite front
 
 ## Optional Environment
 
+- `VITE_ENABLE_LAUNCH_EXECUTION`
+- `VITE_ENABLE_TRADE_EXECUTION`
+- `VITE_EXECUTION_VERIFIED`
 - `PINATA_JWT`
 - `ION_PRICE_USD`
 
@@ -80,6 +86,31 @@ The Desk is local-first. Watched tokens, launch packets, and trade drafts are sa
 2. Keep launch/trade execution toggles disabled until route verification is complete.
 3. Ask users to export important creator packets before changing devices or clearing browser data.
 4. Use the Desk workspace backup when moving local testing data between browsers.
+
+## Transactional Route Operations
+
+Execution support is implemented but must stay gated until staging wallet tests are complete.
+
+Supported in the current adapter:
+
+- Launch: standard token creation through the verified external launch API and official BNB Chain token manager.
+- Buy: BNB-quoted token buys using the verified helper quote and token manager route.
+- Sell: BNB-quoted token sells using allowance, approval when needed, helper quote, and token manager route.
+
+Not enabled in this adapter:
+
+- ERC-20 quoted trades.
+- X Mode token buys.
+- Tax-token special flows.
+- Any custom router, escrow, fee splitter, or server-side signer.
+
+Preview testing sequence:
+
+1. Set `VITE_ENABLE_LAUNCH_EXECUTION=true` and `VITE_ENABLE_TRADE_EXECUTION=true` only in the Vercel Preview environment.
+2. Keep `VITE_EXECUTION_VERIFIED=false` until the first successful launch, buy, and sell tests are documented.
+3. Run a tiny mainnet launch test from a normal wallet and record the BNBScan transaction hash.
+4. Run a tiny buy and sell on a verified BNB-paired launch token and record both transaction hashes.
+5. After the checklist passes, set `VITE_EXECUTION_VERIFIED=true` for Preview, redeploy, and confirm `/status` has no execution blockers.
 
 ## Go-Live Gate
 

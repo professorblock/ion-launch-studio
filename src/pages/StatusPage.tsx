@@ -10,6 +10,7 @@ const labels = {
   burnBoard: 'Burn board data',
   launchExecution: 'Launch execution',
   tradeExecution: 'Trade execution',
+  executionVerified: 'Execution verified',
 } as const;
 
 export function StatusPage() {
