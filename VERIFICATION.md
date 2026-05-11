@@ -24,6 +24,7 @@ This checklist must be completed before enabling public transactional flows.
 - [ ] Confirm Bitquery API token and quota.
 - [ ] Confirm `/api/bitquery` returns normalized live tokens on staging.
 - [ ] Confirm `/api/bitquery` returns normalized token-detail trades on staging.
+- [ ] Confirm migration events mark graduated tokens from `PairCreated` / `PoolCreated` proxy events.
 - [ ] Confirm frontend bundle does not expose `BITQUERY_API_TOKEN`.
 
 ## Metadata

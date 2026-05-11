@@ -1,9 +1,12 @@
+import { Buffer } from 'node:buffer';
+
 const BITQUERY_GRAPHQL_URL = process.env.BITQUERY_GRAPHQL_URL || 'https://streaming.bitquery.io/graphql';
 const FOUR_MEME_PROXY = (process.env.FOUR_MEME_PROXY || '0x5c952063c7fc8610ffdb798152d69f0b9550762b').toLowerCase();
 const ION_TOKEN_ADDRESS = normalizeAddress(process.env.ION_TOKEN_BSC_ADDRESS || process.env.VITE_ION_TOKEN_BSC_ADDRESS || '');
 const TREASURY_ADDRESS = normalizeAddress(process.env.TREASURY_ADDRESS || process.env.VITE_TREASURY_ADDRESS || '');
 const ION_BURN_ADDRESSES = parseAddressList(process.env.ION_BURN_ADDRESSES || '0x000000000000000000000000000000000000dead');
 const ION_PRICE_USD = Number(process.env.ION_PRICE_USD || 0);
+const MAX_JSON_BODY_BYTES = 64_000;
 
 const JSON_HEADERS = {
   'content-type': 'application/json',
@@ -28,6 +31,31 @@ const dashboardQuery = `
           }
         }
         limit: { count: 40 }
+        orderBy: { descending: Block_Time }
+      ) {
+        Block { Time }
+        Transaction { Hash From }
+        Arguments {
+          Name
+          Type
+          Value {
+            ... on EVM_ABI_Integer_Value_Arg { integer }
+            ... on EVM_ABI_Boolean_Value_Arg { bool }
+            ... on EVM_ABI_Bytes_Value_Arg { hex }
+            ... on EVM_ABI_BigInt_Value_Arg { bigInteger }
+            ... on EVM_ABI_Address_Value_Arg { address }
+            ... on EVM_ABI_String_Value_Arg { string }
+          }
+        }
+      }
+      Migrations: Events(
+        where: {
+          Transaction: { To: { is: $proxy } }
+          Log: {
+            Signature: { Name: { in: ["PairCreated", "PoolCreated"] } }
+          }
+        }
+        limit: { count: 60 }
         orderBy: { descending: Block_Time }
       ) {
         Block { Time }
@@ -135,7 +163,13 @@ export default async function handler(request, response) {
     return;
   }
 
-  const body = await readJsonBody(request);
+  let body;
+  try {
+    body = await readJsonBody(request, MAX_JSON_BODY_BYTES);
+  } catch {
+    response.status(413).json({ error: 'Request body too large' });
+    return;
+  }
   const operation = typeof body.operation === 'string' ? body.operation : 'launch-dashboard';
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -190,10 +224,10 @@ export default async function handler(request, response) {
     }
 
     const payload = await bitquery(token, dashboardQuery, { proxy: FOUR_MEME_PROXY, since });
-    const tokens = mergeTokens(
+    const tokens = applyMigrationStatus(mergeTokens(
       extractTokenEvents(payload),
       extractTradeTokens(payload),
-    );
+    ), extractMigrationAddresses(payload));
     const trades = extractTrades(payload);
 
     response.status(200).setHeader('cache-control', JSON_HEADERS['cache-control']).json({
@@ -209,12 +243,16 @@ export default async function handler(request, response) {
   }
 }
 
-async function readJsonBody(request) {
+async function readJsonBody(request, maxBytes = 64_000) {
   if (request.body && typeof request.body === 'object') return request.body;
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let raw = '';
     request.on('data', (chunk) => {
       raw += chunk;
+      if (Buffer.byteLength(raw) > maxBytes) {
+        reject(new Error('Request body too large'));
+        request.destroy?.();
+      }
     });
     request.on('end', () => {
       try {
@@ -388,6 +426,45 @@ function mergeTokens(primaryTokens, tradeTokens) {
   return Array.from(byAddress.values()).slice(0, 40);
 }
 
+function extractMigrationAddresses(payload) {
+  const migrations = payload?.data?.EVM?.Migrations ?? [];
+  const byToken = new Map();
+
+  for (const event of migrations) {
+    const txHash = event.Transaction?.Hash;
+    const addresses = (event.Arguments ?? [])
+      .map((argument) => normalizeAddress(argument.Value?.address))
+      .filter((address) => address && !BASE_ASSETS.has(address));
+
+    for (const address of addresses) {
+      if (!byToken.has(address)) {
+        byToken.set(address, {
+          txHash,
+          migratedAt: event.Block?.Time,
+        });
+      }
+    }
+  }
+
+  return byToken;
+}
+
+function applyMigrationStatus(tokens, migrations) {
+  if (!migrations.size) return tokens;
+
+  return tokens.map((token) => {
+    const migration = migrations.get(token.address);
+    if (!migration) return token;
+    return {
+      ...token,
+      status: 'graduated',
+      bondingProgress: 100,
+      migrationTx: normalizeHash(migration.txHash),
+      createdAt: token.createdAt || migration.migratedAt || new Date().toISOString(),
+    };
+  });
+}
+
 function estimateChange(volumeUsd, trades) {
   if (!volumeUsd || !trades) return 0;
   const signal = Math.log10(Math.max(volumeUsd, 1)) * 4 + Math.min(trades, 120) * 0.08;
@@ -430,6 +507,11 @@ function usdAmount(side) {
 function normalizeAddress(value) {
   const text = typeof value === 'string' ? value.toLowerCase() : '';
   return /^0x[a-f0-9]{40}$/.test(text) ? text : undefined;
+}
+
+function normalizeHash(value) {
+  const text = typeof value === 'string' ? value.toLowerCase() : '';
+  return /^0x[a-f0-9]{64}$/.test(text) ? text : undefined;
 }
 
 function parseAddressList(value) {

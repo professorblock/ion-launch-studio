@@ -4,6 +4,7 @@ import { Buffer } from 'node:buffer';
 const PINATA_JSON_URL = 'https://api.pinata.cloud/pinning/pinJSONToIPFS';
 const PINATA_FILE_URL = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
 const MAX_IMAGE_BYTES = 1_500_000;
+const MAX_JSON_BODY_BYTES = 2_200_000;
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export default async function handler(request, response) {
@@ -19,7 +20,7 @@ export default async function handler(request, response) {
   }
 
   try {
-    const body = await readJsonBody(request);
+    const body = await readJsonBody(request, MAX_JSON_BODY_BYTES);
     const metadata = normalizeMetadata(body);
 
     if (!metadata) {
@@ -173,12 +174,17 @@ function extensionForMime(mimeType) {
   return 'png';
 }
 
-async function readJsonBody(request) {
+async function readJsonBody(request, maxBytes = 64_000) {
   if (request.body && typeof request.body === 'object') return request.body;
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let raw = '';
     request.on('data', (chunk) => {
       raw += chunk;
+      if (Buffer.byteLength(raw) > maxBytes) {
+        reject(new MetadataError(413, 'Request body too large'));
+        request.destroy?.();
+        return;
+      }
     });
     request.on('end', () => {
       try {
