@@ -51,6 +51,7 @@ export function LaunchPage() {
   const [feeSubmittedAt, setFeeSubmittedAt] = useState<string>();
   const [feeConfirmedAt, setFeeConfirmedAt] = useState<string>();
   const [feeBlockNumber, setFeeBlockNumber] = useState<string>();
+  const [feeRecoveryHash, setFeeRecoveryHash] = useState('');
   const [launchTxHash, setLaunchTxHash] = useState<Hex>();
   const [launchStatus, setLaunchStatus] = useState<LaunchPacket['launchStatus']>();
   const [launchError, setLaunchError] = useState<string>();
@@ -371,6 +372,16 @@ export function LaunchPage() {
     }
   }
 
+  async function recoverPaidFee() {
+    const hash = feeRecoveryHash.trim() as Hex;
+    if (!/^0x[a-fA-F0-9]{64}$/.test(hash)) {
+      setFeeError('Paste a valid BNB Chain transaction hash.');
+      return;
+    }
+    await verifySubmittedFee(hash, new Date().toISOString());
+    setFeeTxHash(hash);
+  }
+
   function updateFeeRecord(record: Partial<LaunchPacket>) {
     if (record.feeTxHash) setFeeTxHash(record.feeTxHash);
     if (record.feeStatus) setFeeStatus(record.feeStatus);
@@ -599,6 +610,26 @@ export function LaunchPage() {
             >
               {feeButtonLabel}
             </button>
+            {!feeSatisfied ? (
+              <div className="fee-recovery">
+                <label>
+                  Already paid?
+                  <input
+                    value={feeRecoveryHash}
+                    onChange={(event) => setFeeRecoveryHash(event.target.value.trim())}
+                    placeholder="Paste fee transaction hash"
+                  />
+                </label>
+                <button
+                  className="button button-muted full-width"
+                  type="button"
+                  disabled={isFeePending || !feeRecoveryHash.trim()}
+                  onClick={() => void recoverPaidFee()}
+                >
+                  Verify paid fee
+                </button>
+              </div>
+            ) : null}
             {feeError ? <div className="fee-error">{feeError}</div> : null}
             {currentFeeStatus ? (
               <div className="fee-box">
