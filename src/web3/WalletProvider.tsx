@@ -18,6 +18,11 @@ interface InjectedEthereum {
   request: (request: EthereumRequest) => Promise<unknown>;
   on?: (event: string, handler: (...args: unknown[]) => void) => void;
   removeListener?: (event: string, handler: (...args: unknown[]) => void) => void;
+  providers?: InjectedEthereum[];
+  isBinance?: boolean;
+  isMetaMask?: boolean;
+  isOkxWallet?: boolean;
+  isTrust?: boolean;
 }
 
 interface EthereumTransactionReceipt {
@@ -25,14 +30,65 @@ interface EthereumTransactionReceipt {
   blockNumber?: Hex;
 }
 
+interface WalletRpcError {
+  code?: number | string;
+  message?: string;
+}
+
+declare global {
+  interface Window {
+    BinanceChain?: InjectedEthereum;
+    trustwallet?: InjectedEthereum;
+    okxwallet?: {
+      ethereum?: InjectedEthereum;
+    };
+  }
+}
+
 function getEthereum() {
-  return typeof window !== 'undefined' ? (window.ethereum as InjectedEthereum | undefined) : undefined;
+  if (typeof window === 'undefined') return undefined;
+  const primaryProvider = window.ethereum as InjectedEthereum | undefined;
+  const injected = [
+    primaryProvider,
+    ...(primaryProvider?.providers || []),
+    window.BinanceChain,
+    window.trustwallet,
+    window.okxwallet?.ethereum,
+  ].filter(isInjectedEthereum);
+
+  return injected.find((provider) => provider.isMetaMask)
+    || injected.find((provider) => provider.isBinance)
+    || injected.find((provider) => provider.isTrust)
+    || injected.find((provider) => provider.isOkxWallet)
+    || injected[0];
+}
+
+function isInjectedEthereum(value: unknown): value is InjectedEthereum {
+  return Boolean(value && typeof value === 'object' && 'request' in value && typeof (value as InjectedEthereum).request === 'function');
 }
 
 function normalizeChainId(value: unknown) {
   if (typeof value === 'string') return Number.parseInt(value, 16);
   if (typeof value === 'number') return value;
   return undefined;
+}
+
+function walletErrorMessage(error: unknown) {
+  const walletError = error as WalletRpcError;
+  const code = walletError?.code;
+  const message = typeof walletError?.message === 'string' ? walletError.message : '';
+
+  if (code === 4001 || message.toLowerCase().includes('user rejected')) {
+    return 'Wallet request rejected. Click Connect Wallet again and approve the request in your wallet popup.';
+  }
+
+  if (code === -32002 || message.toLowerCase().includes('already pending') || message.toLowerCase().includes('already processing')) {
+    return 'A wallet connection request is already open. Check your wallet extension popup and approve or close the pending request.';
+  }
+
+  if (message) return message;
+
+  return 'Wallet connection failed. Open this page in MetaMask, Binance Wallet, Trust Wallet, or another EVM wallet browser and try again.';
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -68,7 +124,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setAddress(accounts[0]);
       await refreshChain();
     } catch (error) {
-      setWalletError(error instanceof Error ? error.message : 'Wallet connection was rejected or unavailable.');
+      setWalletError(walletErrorMessage(error));
     } finally {
       setIsConnecting(false);
     }
