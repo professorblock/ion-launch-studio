@@ -15,9 +15,11 @@ const platformStatusSchema = z.object({
     bitquery: z.boolean(),
     metadata: z.boolean(),
     ionFee: z.boolean(),
+    feeVerifier: z.boolean().catch(false),
     burnBoard: z.boolean(),
     launchExecution: z.boolean().catch(false),
     tradeExecution: z.boolean().catch(false),
+    executionVerified: z.boolean().catch(false),
   }),
   network: z.object({
     bnbChainId: z.number(),
@@ -45,9 +47,11 @@ export async function fetchPlatformStatus(): Promise<PlatformStatus> {
         bitquery: false,
         metadata: false,
         ionFee: false,
+        feeVerifier: false,
         burnBoard: false,
         launchExecution: false,
         tradeExecution: false,
+        executionVerified: false,
       },
       network: {
         bnbChainId: 56,

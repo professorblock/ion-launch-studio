@@ -36,19 +36,29 @@ const checks = [
     detail: 'PINATA_JWT is optional, but it must never be exposed as VITE_PINATA_JWT.',
   },
   {
+    name: 'BSC RPC stays server-side',
+    ok: !env.VITE_BSC_RPC_URL,
+    detail: 'Use BSC_RPC_URL only as a server-side override for read-only fee verification.',
+  },
+  {
     name: 'Four Meme proxy address set',
     ok: isAddress(env.VITE_FOUR_MEME_PROXY || env.FOUR_MEME_PROXY),
     detail: 'Set VITE_FOUR_MEME_PROXY and FOUR_MEME_PROXY for market-data filtering.',
   },
   {
+    name: 'Four Meme helper address set',
+    ok: isAddress(env.VITE_FOUR_MEME_HELPER),
+    detail: 'Set VITE_FOUR_MEME_HELPER for read-only trade quotes.',
+  },
+  {
     name: 'Launch execution remains gated',
-    ok: env.VITE_ENABLE_LAUNCH_EXECUTION !== 'true',
-    detail: 'Keep VITE_ENABLE_LAUNCH_EXECUTION=false until the launch route is independently verified.',
+    ok: env.VITE_ENABLE_LAUNCH_EXECUTION !== 'true' || env.VITE_EXECUTION_VERIFIED === 'true',
+    detail: 'Keep VITE_ENABLE_LAUNCH_EXECUTION=false until the launch route is independently verified, then set VITE_EXECUTION_VERIFIED=true.',
   },
   {
     name: 'Trade execution remains gated',
-    ok: env.VITE_ENABLE_TRADE_EXECUTION !== 'true',
-    detail: 'Keep VITE_ENABLE_TRADE_EXECUTION=false until trade calldata and slippage behavior are verified.',
+    ok: env.VITE_ENABLE_TRADE_EXECUTION !== 'true' || env.VITE_EXECUTION_VERIFIED === 'true',
+    detail: 'Keep VITE_ENABLE_TRADE_EXECUTION=false until trade calldata and slippage behavior are verified, then set VITE_EXECUTION_VERIFIED=true.',
   },
 ];
 

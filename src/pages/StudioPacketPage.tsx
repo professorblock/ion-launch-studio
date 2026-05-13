@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Copy, Download, Edit3, ExternalLink, Rocket, Trash2 } from 'lucide-react';
-import { deleteLaunchPacket, getLaunchPacket } from '../lib/launchPackets';
+import { deleteLaunchPacket, getLaunchPacket, saveLaunchPacket } from '../lib/launchPackets';
 import { compactAddress, timeAgo } from '../lib/format';
+import { verifyFeeTransaction } from '../lib/feeVerification';
 import type { LaunchPacket } from '../types/launch';
 
 export function StudioPacketPage() {
@@ -10,6 +11,8 @@ export function StudioPacketPage() {
   const navigate = useNavigate();
   const [packet, setPacket] = useState<LaunchPacket | undefined>(() => getLaunchPacket(id));
   const [copied, setCopied] = useState(false);
+  const [verifyMessage, setVerifyMessage] = useState<string>();
+  const [isVerifyingFee, setIsVerifyingFee] = useState(false);
 
   useEffect(() => {
     setPacket(getLaunchPacket(id));
@@ -42,6 +45,31 @@ export function StudioPacketPage() {
     navigate('/studio');
   }
 
+  async function verifyFee() {
+    if (!packet?.feeTxHash) return;
+    setIsVerifyingFee(true);
+    setVerifyMessage(undefined);
+
+    try {
+      const result = await verifyFeeTransaction(packet.feeTxHash);
+      const nextPacket: LaunchPacket = {
+        ...packet,
+        feeStatus: result.valid ? 'confirmed' : result.status === 'reverted' ? 'reverted' : 'submitted',
+        feeVerificationStatus: result.valid ? 'verified' : result.status === 'pending' ? 'unchecked' : 'mismatch',
+        feeVerificationMessage: result.valid ? 'Verified against BNB Chain transfer logs.' : result.reason ?? `Fee transaction ${result.status}.`,
+        feeConfirmedAt: result.valid ? new Date().toISOString() : packet.feeConfirmedAt,
+        feeBlockNumber: result.blockNumber ?? packet.feeBlockNumber,
+      };
+      saveLaunchPacket(nextPacket);
+      setPacket(nextPacket);
+      setVerifyMessage(result.valid ? 'Fee transfer verified.' : result.reason ?? `Fee transaction ${result.status}.`);
+    } catch (error) {
+      setVerifyMessage(error instanceof Error ? error.message : 'Fee verification service unavailable.');
+    } finally {
+      setIsVerifyingFee(false);
+    }
+  }
+
   return (
     <section className="page-section packet-page">
       <div className="wizard-heading narrow">
@@ -69,8 +97,9 @@ export function StudioPacketPage() {
             <span>Ticker <strong>${packet.symbol}</strong></span>
             <span>Metadata <strong>{packet.metadataStatus === 'pinned' ? 'Pinned' : packet.metadataStatus === 'unconfigured' ? 'Unconfigured' : 'Local'}</strong></span>
             <span>Image <strong>{packet.imageUri ? 'Pinned' : packet.imagePreview ? 'Local' : 'Not set'}</strong></span>
-            <span>Fee <strong>{packet.feeTxHash ? 'Submitted' : 'Pending'}</strong></span>
+            <span>Fee <strong>{feeLabel(packet)}</strong></span>
             <span>Fee amount <strong>{packet.feeAmountIon ? `${packet.feeAmountIon} ION` : 'Not set'}</strong></span>
+            <span>Fee block <strong>{packet.feeBlockNumber ?? 'Pending'}</strong></span>
             <span>Website <strong>{packet.website || 'Not set'}</strong></span>
             <span>Telegram <strong>{packet.telegram || 'Not set'}</strong></span>
           </div>
@@ -89,8 +118,11 @@ export function StudioPacketPage() {
               <li className={packet.metadataStatus === 'pinned' ? 'done' : ''}>
                 {packet.metadataStatus === 'pinned' ? 'Metadata pinned' : 'Metadata local'}
               </li>
-              <li className={packet.feeTxHash ? 'done' : ''}>
-                {packet.feeTxHash ? 'ION fee transaction submitted' : 'ION fee pending'}
+              <li className={packet.feeStatus === 'confirmed' ? 'done' : ''}>
+                {packet.feeStatus === 'confirmed' ? 'ION fee transaction confirmed' : packet.feeTxHash ? 'ION fee transaction submitted' : 'ION fee pending'}
+              </li>
+              <li className={packet.feeVerificationStatus === 'verified' ? 'done' : ''}>
+                {packet.feeVerificationStatus === 'verified' ? 'Treasury transfer verified' : 'Treasury transfer verification pending'}
               </li>
               <li>Final route verification pending</li>
             </ul>
@@ -110,10 +142,15 @@ export function StudioPacketPage() {
               <Download size={17} />
               Export JSON
             </button>
+            <button className="button button-muted full-width" type="button" disabled={!packet.feeTxHash || isVerifyingFee} onClick={() => void verifyFee()}>
+              <CheckCircle2 size={17} />
+              {isVerifyingFee ? 'Verifying fee' : 'Verify fee'}
+            </button>
             <button className="button button-muted full-width" type="button" onClick={removePacket}>
               <Trash2 size={17} />
               Delete local packet
             </button>
+            {verifyMessage ? <div className="studio-import-message">{verifyMessage}</div> : null}
           </div>
 
           <div className="side-card">
@@ -122,7 +159,10 @@ export function StudioPacketPage() {
               <span>Metadata <strong>{packet.metadataUri ? 'Pinned' : 'Local'}</strong></span>
               <span>Image <strong>{packet.imageUri ? 'Pinned' : packet.imagePreview ? 'Local' : 'Not set'}</strong></span>
               <span>Fee tx <strong>{packet.feeTxHash ? compactAddress(packet.feeTxHash, 6) : 'Pending'}</strong></span>
-              <span>Fee time <strong>{packet.feeSubmittedAt ? timeAgo(packet.feeSubmittedAt) : 'Pending'}</strong></span>
+              <span>Submitted <strong>{packet.feeSubmittedAt ? timeAgo(packet.feeSubmittedAt) : 'Pending'}</strong></span>
+              <span>Confirmed <strong>{packet.feeConfirmedAt ? timeAgo(packet.feeConfirmedAt) : 'Pending'}</strong></span>
+              <span>Block <strong>{packet.feeBlockNumber ?? 'Pending'}</strong></span>
+              <span>Verification <strong>{packet.feeVerificationStatus === 'verified' ? 'Verified' : packet.feeVerificationStatus === 'mismatch' ? 'Needs review' : 'Pending'}</strong></span>
             </div>
             {packet.metadataUri ? (
               <a className="external-card" href={packet.metadataGatewayUrl || packet.metadataUri.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/')} target="_blank" rel="noreferrer">
@@ -156,4 +196,13 @@ export function StudioPacketPage() {
       </div>
     </section>
   );
+}
+
+function feeLabel(packet: LaunchPacket) {
+  if (packet.feeStatus === 'confirmed' && packet.feeVerificationStatus === 'verified') return 'Verified';
+  if (packet.feeVerificationStatus === 'mismatch') return 'Needs review';
+  if (packet.feeStatus === 'confirmed') return 'Confirmed';
+  if (packet.feeStatus === 'reverted') return 'Reverted';
+  if (packet.feeTxHash) return 'Submitted';
+  return 'Pending';
 }

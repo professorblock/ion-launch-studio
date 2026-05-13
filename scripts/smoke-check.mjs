@@ -3,12 +3,15 @@ import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 const requiredFiles = [
   'api/bitquery.js',
   'api/metadata.js',
+  'api/fourmeme.js',
   'api/status.js',
+  'api/verify-fee.js',
   'src/pages/HomePage.tsx',
   'src/pages/DeskPage.tsx',
   'src/pages/DiscoverPage.tsx',
   'src/pages/DocsPage.tsx',
   'src/pages/LaunchPage.tsx',
+  'src/pages/NotFoundPage.tsx',
   'src/pages/ReadinessPage.tsx',
   'src/pages/StudioPage.tsx',
   'src/pages/StudioPacketPage.tsx',
@@ -16,6 +19,7 @@ const requiredFiles = [
   'src/pages/StatusPage.tsx',
   'src/pages/TermsPage.tsx',
   'src/pages/PrivacyPage.tsx',
+  'src/components/token/MarketChart.tsx',
   'vercel.json',
   '.github/workflows/ci.yml',
 ];

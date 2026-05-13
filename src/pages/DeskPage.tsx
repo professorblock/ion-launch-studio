@@ -135,7 +135,15 @@ export function DeskPage() {
                   <ClipboardCheck size={18} />
                   <span>
                     <strong>{packet.name}</strong>
-                    <small>${packet.symbol} · {packet.feeTxHash ? 'Fee submitted' : 'Fee pending'}</small>
+                    <small>
+                      ${packet.symbol} · {packet.feeStatus === 'confirmed' && packet.feeVerificationStatus === 'verified'
+                        ? 'Fee verified'
+                        : packet.feeVerificationStatus === 'mismatch'
+                          ? 'Fee needs review'
+                          : packet.feeTxHash
+                            ? 'Fee submitted'
+                            : 'Fee pending'}
+                    </small>
                   </span>
                   <Eye size={17} />
                 </Link>

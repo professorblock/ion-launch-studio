@@ -30,4 +30,16 @@
   <url>
     <loc>https://launch.ionhub.io/fee-policy</loc>
   </url>
+  <url>
+    <loc>https://launch.ionhub.io/status</loc>
+  </url>
+  <url>
+    <loc>https://launch.ionhub.io/risk</loc>
+  </url>
+  <url>
+    <loc>https://launch.ionhub.io/terms</loc>
+  </url>
+  <url>
+    <loc>https://launch.ionhub.io/privacy</loc>
+  </url>
 </urlset>

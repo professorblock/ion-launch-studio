@@ -8,8 +8,8 @@ const productChecks = [
   { label: 'No custom launch contracts in app scope', ready: true },
   { label: 'No server-side transaction signing', ready: true },
   { label: 'ION fee uses wallet-confirmed ERC-20 transfer', ready: Boolean(feeConfig.ionTokenAddress && feeConfig.treasuryAddress) },
-  { label: 'Launch execution route gated', ready: !featureFlags.launchExecution },
-  { label: 'Trade execution route gated', ready: !featureFlags.tradeExecution },
+  { label: 'Launch execution route gated or verified', ready: !featureFlags.launchExecution || featureFlags.executionVerified },
+  { label: 'Trade execution route gated or verified', ready: !featureFlags.tradeExecution || featureFlags.executionVerified },
 ];
 
 export function ReadinessPage() {

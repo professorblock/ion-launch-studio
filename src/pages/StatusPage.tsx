@@ -6,9 +6,11 @@ const labels = {
   bitquery: 'Live market data',
   metadata: 'Metadata pinning',
   ionFee: 'ION fee collection',
+  feeVerifier: 'Fee verification',
   burnBoard: 'Burn board data',
   launchExecution: 'Launch execution',
   tradeExecution: 'Trade execution',
+  executionVerified: 'Execution verified',
 } as const;
 
 export function StatusPage() {

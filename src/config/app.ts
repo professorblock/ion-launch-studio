@@ -1,12 +1,15 @@
 import { isAddress } from 'viem';
 
 export const FOUR_MEME_PROXY = import.meta.env.VITE_FOUR_MEME_PROXY || '0x5c952063c7fc8610ffdb798152d69f0b9550762b';
+export const FOUR_MEME_HELPER = import.meta.env.VITE_FOUR_MEME_HELPER || '0xF251F83e40a78868FcfA3FA4599Dad6494E46034';
 export const BNB_CHAIN_ID = Number(import.meta.env.VITE_BNB_CHAIN_ID || 56);
 export const APP_NAME = import.meta.env.VITE_APP_NAME || 'ION Launch';
 export const BITQUERY_PROXY_PATH = import.meta.env.VITE_BITQUERY_PROXY_PATH || '/api/bitquery';
+export const FOUR_MEME_PROXY_PATH = import.meta.env.VITE_FOUR_MEME_PROXY_PATH || '/api/fourmeme';
 export const featureFlags = {
   launchExecution: import.meta.env.VITE_ENABLE_LAUNCH_EXECUTION === 'true',
   tradeExecution: import.meta.env.VITE_ENABLE_TRADE_EXECUTION === 'true',
+  executionVerified: import.meta.env.VITE_EXECUTION_VERIFIED === 'true',
 };
 
 const configuredIonToken = import.meta.env.VITE_ION_TOKEN_BSC_ADDRESS || '';
@@ -24,6 +27,7 @@ export const feeConfig = {
 export const chainConfig = {
   bnbChainId: BNB_CHAIN_ID,
   fourMemeProxy: FOUR_MEME_PROXY,
+  fourMemeHelper: FOUR_MEME_HELPER,
 };
 
 export const externalLinks = {

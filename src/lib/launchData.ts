@@ -38,6 +38,7 @@ const tradeSchema = z.object({
   trader: addressSchema,
   amountToken: z.coerce.number().nonnegative().catch(0),
   amountUsd: z.coerce.number().nonnegative().catch(0),
+  priceUsd: z.coerce.number().nonnegative().optional().catch(undefined),
   timestamp: z.string().min(1),
 });
 
