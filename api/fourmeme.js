@@ -69,6 +69,7 @@ export default async function handler(request, response) {
       if (!raisedAmount) throw new Error('Four.meme BNB launch amount unavailable');
       const createPayload = await fourMeme('/v1/private/token/create', {
         name: token.name,
+        symbol: token.symbol,
         shortName: token.symbol,
         desc: token.description,
         imgUrl: imageUrl,
