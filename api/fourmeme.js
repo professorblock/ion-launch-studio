@@ -65,6 +65,8 @@ export default async function handler(request, response) {
 
       const imageUrl = await uploadImage(accessToken, body.imageDataUrl, token.symbol);
       const raisedToken = await getBnbRaisedToken();
+      const raisedAmount = safeNumericString(raisedToken.totalBAmount);
+      if (!raisedAmount) throw new Error('Four.meme BNB launch amount unavailable');
       const createPayload = await fourMeme('/v1/private/token/create', {
         name: token.name,
         shortName: token.symbol,
@@ -77,6 +79,7 @@ export default async function handler(request, response) {
         twitterUrl: token.x || '',
         telegramUrl: token.telegram || '',
         preSale: token.preSale,
+        raisedAmount,
         onlyMPC: false,
         feePlan: false,
         raisedToken,
@@ -211,6 +214,11 @@ function safeText(value, fallback = '', max = 120) {
 
 function safeSymbol(value) {
   return safeText(value, '', 12).replace(/[^a-z0-9]/gi, '').toUpperCase();
+}
+
+function safeNumericString(value) {
+  const text = typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
+  return /^\d+(\.\d+)?$/.test(text) ? text : '';
 }
 
 function safeUrl(value) {
