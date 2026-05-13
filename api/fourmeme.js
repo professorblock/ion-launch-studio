@@ -67,7 +67,7 @@ export default async function handler(request, response) {
       const raisedToken = await getBnbRaisedToken();
       const raisedAmount = safeNumericString(raisedToken.totalBAmount);
       if (!raisedAmount) throw new Error('Four.meme BNB launch amount unavailable');
-      const createPayload = await fourMeme('/v1/private/token/create', {
+      const createBody = withOptionalFields({
         name: token.name,
         symbol: token.symbol,
         shortName: token.symbol,
@@ -76,15 +76,17 @@ export default async function handler(request, response) {
         launchTime: Date.now(),
         label: token.label,
         lpTradingFee: 0.0025,
-        webUrl: token.website || '',
-        twitterUrl: token.x || '',
-        telegramUrl: token.telegram || '',
         preSale: token.preSale,
         raisedAmount,
         onlyMPC: false,
         feePlan: false,
         raisedToken,
       }, {
+        webUrl: token.website,
+        twitterUrl: token.x,
+        telegramUrl: token.telegram,
+      });
+      const createPayload = await fourMeme('/v1/private/token/create', createBody, {
         'meme-web-access': accessToken,
       });
 
@@ -222,12 +224,20 @@ function safeNumericString(value) {
   return /^\d+(\.\d+)?$/.test(text) ? text : '';
 }
 
+function withOptionalFields(base, optional) {
+  return Object.entries(optional).reduce((payload, [key, value]) => {
+    if (typeof value === 'string' && value) payload[key] = value;
+    return payload;
+  }, { ...base });
+}
+
 function safeUrl(value) {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text) return '';
   try {
     const url = new URL(text.startsWith('http') ? text : `https://${text}`);
-    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
+    const normalized = url.toString();
+    return ['http:', 'https:'].includes(url.protocol) && normalized.length <= 150 ? normalized : '';
   } catch {
     return '';
   }
